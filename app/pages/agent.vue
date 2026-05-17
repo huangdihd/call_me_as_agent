@@ -92,13 +92,16 @@ onMounted(() => {
   }, 2000)
 })
 
-// Scroll when active request changes or messages update
-watch([activeRequestId, requests, sentHistory], () => {
-  scrollToBottom()
-  // Close sidebar on mobile when selecting request
+const selectRequest = (id: string) => {
+  activeRequestId.value = id
   if (window.innerWidth < 1024) {
     isSidebarOpen.value = false
   }
+}
+
+// Scroll when active request changes or messages update
+watch([activeRequestId, requests, sentHistory], () => {
+  scrollToBottom()
 }, { deep: true })
 
 onUnmounted(() => {
@@ -390,7 +393,7 @@ const availableTools = computed(() => {
               :key="req.id"
               class="w-full text-left p-3 rounded-lg transition-colors group relative"
               :class="activeRequestId === req.id ? 'bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400' : 'hover:bg-gray-100 dark:hover:bg-gray-800'"
-              @click="activeRequestId = req.id"
+              @click="selectRequest(req.id)"
             >
               <div class="flex justify-between items-start mb-1">
                 <UBadge :color="req.type === 'claude' ? 'info' : 'primary'" variant="subtle" size="xs">
