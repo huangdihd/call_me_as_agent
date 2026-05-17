@@ -374,6 +374,20 @@ const availableTools = computed(() => {
               />
             </div>
           </div>
+          <div class="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+            <div class="flex items-center gap-1">
+              <UButton
+                icon="i-simple-icons-github"
+                size="xs"
+                variant="ghost"
+                color="neutral"
+                to="https://github.com/huangdihd/call_me_as_agent"
+                target="_blank"
+              />
+              <span class="text-[10px] text-gray-400 font-medium">MIT License</span>
+            </div>
+            <span class="text-[10px] text-gray-400">v1.0.0</span>
+          </div>
         </div>
       </aside>
 

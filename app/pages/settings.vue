@@ -147,6 +147,20 @@ const saveSettings = async () => {
             </div>
           </template>
         </UCard>
+
+        <div class="flex items-center justify-center gap-4 pt-4">
+          <UButton
+            icon="i-simple-icons-github"
+            label="GitHub Repository"
+            variant="link"
+            color="neutral"
+            size="xs"
+            to="https://github.com/huangdihd/call_me_as_agent"
+            target="_blank"
+          />
+          <span class="text-xs text-gray-400">|</span>
+          <span class="text-xs text-gray-400">Released under MIT License</span>
+        </div>
       </div>
     </main>
   </div>
