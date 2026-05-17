@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // 1. Initial message start
+    // 1. Initial message start (SEND IMMEDIATELY)
     sendSSE('message_start', {
       type: 'message_start',
       message: {
@@ -141,7 +141,7 @@ export default defineEventHandler(async (event) => {
       })
     })
   } else {
-    // Non-streaming
+    // Non-streaming: Wait for final
     return new Promise((resolve) => {
       const bufferedContent: any[] = []
       

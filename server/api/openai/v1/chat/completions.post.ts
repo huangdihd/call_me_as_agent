@@ -83,8 +83,9 @@ export default defineEventHandler(async (event) => {
                 model: body.model || 'gpt-4o',
                 choices: [{ index: 0, delta: { content: content[i] }, finish_reason: null }]
               })
-              await new Promise(r => setTimeout(resolve, speed))
+              await new Promise(r => setTimeout(r, speed))
             }
+
           }
         }
 

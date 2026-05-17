@@ -34,22 +34,31 @@ export default defineEventHandler(async (event) => {
     })
     event.node.res.flushHeaders()
 
-    const sendEvent = (eventName: string, data: any) => {
+    let sequence = 0
+    const emit = (eventName: string, data: any) => {
       if (!event.node.res.writableEnded) {
-        event.node.res.write(`event: ${eventName}\ndata: ${JSON.stringify({ type: eventName, ...data })}\n\n`)
+        const payload = {
+          type: eventName,
+          sequence_number: sequence++,
+          ...data
+        }
+        event.node.res.write(`event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`)
       }
     }
 
-    // 1. Send response.created
-    sendEvent('response.created', {
-      response: {
-        id: `resp_${requestId}`,
-        object: 'response',
-        created: now,
-        model: body.model || 'gpt-4o',
-        status: 'in_progress'
-      }
+    const buildBaseResponse = (status: string, output: any[] = [], usage: any = null) => ({
+      id: `resp_${requestId}`,
+      object: 'response',
+      created: now,
+      model: body.model || 'gpt-4o',
+      status,
+      output,
+      usage
     })
+
+    // 1. Initial events
+    emit('response.created', { response: buildBaseResponse('in_progress') })
+    emit('response.in_progress', { response: buildBaseResponse('in_progress') })
 
     // Setup keep-alive
     const keepAliveTimer = setInterval(() => {
@@ -59,89 +68,87 @@ export default defineEventHandler(async (event) => {
     }, (settings.keepAliveInterval || 15) * 1000)
 
     let outputIndex = 0
+    const assistantItemId = `item_${Math.random().toString(36).substring(2, 9)}`
+    let assistantItemAdded = false
+    let totalContent = ''
+    const finalOutputItems: any[] = []
 
     return new Promise<void>((resolve) => {
       request.onData = async (chunk) => {
         const speed = chunk.simulateStream ? (settings.streamSpeed || 30) : 0
-        const itemId = `item_${Math.random().toString(36).substring(2, 9)}`
 
         // Handle Content
         if (chunk.content) {
-          const content = chunk.content
-          completionTokens += Math.ceil(content.length / 3)
-
-          sendEvent('response.output_item.added', {
-            response_id: `resp_${requestId}`,
-            output_index: outputIndex,
-            item: { id: itemId, type: 'message', role: 'assistant', content: [] }
-          })
-
-          if (speed === 0) {
-            sendEvent('response.output_text.delta', {
-              response_id: `resp_${requestId}`,
-              item_id: itemId,
-              output_index: outputIndex,
-              content_index: 0,
-              delta: content
+          totalContent += chunk.content
+          completionTokens += Math.ceil(chunk.content.length / 3)
+          
+          if (!assistantItemAdded) {
+            emit('response.output_item.added', {
+                output_index: outputIndex,
+                item: {
+                    id: assistantItemId,
+                    type: 'message',
+                    status: 'in_progress',
+                    role: 'assistant',
+                    content: []
+                }
             })
-          } else {
-            for (let i = 0; i < content.length; i++) {
-              sendEvent('response.output_text.delta', {
-                response_id: `resp_${requestId}`,
-                item_id: itemId,
+            emit('response.content_part.added', {
+                item_id: assistantItemId,
                 output_index: outputIndex,
                 content_index: 0,
-                delta: content[i]
+                part: { type: 'output_text', text: '' }
+            })
+            assistantItemAdded = true
+          }
+
+          if (speed === 0) {
+            emit('response.output_text.delta', {
+              item_id: assistantItemId,
+              output_index: outputIndex,
+              content_index: 0,
+              delta: chunk.content
+            })
+          } else {
+            for (let i = 0; i < chunk.content.length; i++) {
+              emit('response.output_text.delta', {
+                item_id: assistantItemId,
+                output_index: outputIndex,
+                content_index: 0,
+                delta: chunk.content[i]
               })
               await new Promise(r => setTimeout(r, speed))
             }
           }
-
-          sendEvent('response.output_text.done', {
-            response_id: `resp_${requestId}`,
-            item_id: itemId,
-            output_index: outputIndex,
-            content_index: 0,
-            text: content
-          })
-          sendEvent('response.output_item.done', {
-            response_id: `resp_${requestId}`,
-            output_index: outputIndex,
-            item: { id: itemId, type: 'message', role: 'assistant', content: [{ type: 'text', text: content }] }
-          })
-          outputIndex++
         }
 
         // Handle Tool Calls
         if (chunk.toolCalls && chunk.toolCalls.length > 0) {
           chunk.toolCalls.forEach((tc) => {
-            const tcItemId = tc.id || `item_tc_${Math.random().toString(36).substring(2, 7)}`
+            const tcItemId = `item_${Math.random().toString(36).substring(2, 9)}`
+            const callId = tc.id || `call_${Math.random().toString(36).substring(2, 9)}`
             const toolName = tc.function?.name || (tc as any).name
             const formattedArgs = typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || (tc as any).input || {})
             
             completionTokens += Math.ceil(formattedArgs.length / 3)
 
-            sendEvent('response.output_item.added', {
-              response_id: `resp_${requestId}`,
+            const toolItem = { 
+              id: tcItemId, 
+              type: 'function_call', 
+              status: 'completed', 
+              call_id: callId,
+              name: toolName, 
+              arguments: formattedArgs 
+            }
+            finalOutputItems.push(toolItem)
+
+            emit('response.output_item.added', {
               output_index: outputIndex,
-              item: { id: tcItemId, type: 'function_call', name: toolName, arguments: '' }
+              item: toolItem
             })
-            sendEvent('response.function_call_arguments.delta', {
-              response_id: `resp_${requestId}`,
-              item_id: tcItemId,
+            emit('response.output_item.done', {
               output_index: outputIndex,
-              delta: formattedArgs
-            })
-            sendEvent('response.function_call_arguments.done', {
-              response_id: `resp_${requestId}`,
-              item_id: tcItemId,
-              output_index: outputIndex,
-              arguments: formattedArgs
-            })
-            sendEvent('response.output_item.done', {
-              response_id: `resp_${requestId}`,
-              output_index: outputIndex,
-              item: { id: tcItemId, type: 'function_call', name: toolName, arguments: formattedArgs }
+              item: toolItem
             })
             outputIndex++
           })
@@ -149,21 +156,47 @@ export default defineEventHandler(async (event) => {
 
         if (chunk.isFinal) {
           clearInterval(keepAliveTimer)
-          // Send response.completion
-          sendEvent('response.completion', {
+          
+          if (assistantItemAdded) {
+            const assistantItem = {
+                id: assistantItemId,
+                type: 'message',
+                status: 'completed',
+                role: 'assistant',
+                content: [{ type: 'output_text', text: totalContent }]
+            }
+            finalOutputItems.unshift(assistantItem)
+
+            emit('response.output_text.done', {
+                item_id: assistantItemId,
+                output_index: 0,
+                content_index: 0,
+                text: totalContent
+            })
+            emit('response.content_part.done', {
+                item_id: assistantItemId,
+                output_index: 0,
+                content_index: 0,
+                part: { type: 'output_text', text: totalContent }
+            })
+            emit('response.output_item.done', {
+                output_index: 0,
+                item: assistantItem
+            })
+          }
+
+          const usage = { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: promptTokens + completionTokens }
+
+          // Terminal events
+          emit('response.completion', {
             response_id: `resp_${requestId}`,
             status: 'completed'
           })
-          // Send response.done with dummy final output array (stateless server won't buffer everything easily)
-          sendEvent('response.done', {
-            response: {
-              id: `resp_${requestId}`,
-              object: 'response',
-              status: 'completed',
-              output: [], 
-              usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: promptTokens + completionTokens }
-            }
+
+          emit('response.done', {
+            response: buildBaseResponse('completed', finalOutputItems, usage)
           })
+
           event.node.res.write('data: [DONE]\n\n')
           event.node.res.end()
           resolve()
@@ -179,20 +212,28 @@ export default defineEventHandler(async (event) => {
   } else {
     // Non-streaming: Wait for final
     return new Promise((resolve) => {
-      const finalOutput: any[] = []
+      let bufferedContent = ''
+      const bufferedItems: any[] = []
+
       request.onData = (chunk) => {
         if (chunk.content) {
-          completionTokens += Math.ceil(chunk.content.length / 3)
-          finalOutput.push({ id: `item_${Math.random().toString(36).substring(2, 7)}`, type: 'message', role: 'assistant', content: chunk.content })
+           bufferedContent += chunk.content
+           completionTokens += Math.ceil(chunk.content.length / 3)
         }
         if (chunk.toolCalls) {
           chunk.toolCalls.forEach(tc => {
             const formattedArgs = typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || (tc as any).input || {})
             completionTokens += Math.ceil(formattedArgs.length / 3)
-            finalOutput.push({ id: tc.id || `item_tc_${Math.random().toString(36).substring(2, 7)}`, type: 'function_call', name: tc.function?.name || (tc as any).name, arguments: formattedArgs })
+            bufferedItems.push({ id: tc.id || `item_tc_${Math.random().toString(36).substring(2, 7)}`, type: 'function_call', status: 'completed', name: tc.function?.name || (tc as any).name, arguments: formattedArgs })
           })
         }
         if (chunk.isFinal) {
+          const finalOutput = []
+          if (bufferedContent) {
+              finalOutput.push({ id: `item_${requestId}`, type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'text', text: bufferedContent }] })
+          }
+          finalOutput.push(...bufferedItems)
+
           resolve({
             id: `resp_${requestId}`,
             object: 'response',

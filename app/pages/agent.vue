@@ -6,14 +6,22 @@ interface PendingRequest {
   timestamp: number
 }
 
+// 1. State declarations first
 const { data: requests, refresh } = useFetch<PendingRequest[]>('/api/internal/requests')
 const { data: settings } = useFetch<any>('/api/settings')
 const activeRequestId = ref<string | null>(null)
 const isAuthenticated = ref(true)
 const loginPassword = ref('')
 const isLoggingIn = ref(false)
+const responses = ref<Record<string, string>>({})
+const structuredToolCalls = ref<Record<string, any[]>>({})
+const simulateStream = ref<Record<string, boolean>>({})
+const submitting = ref<Record<string, boolean>>({})
+const finishing = ref<Record<string, boolean>>({})
 const { t } = useI18n()
+const toast = useToast()
 
+// 2. Auth logic
 const checkAuth = async () => {
   const res: any = await $fetch('/api/auth/check')
   isAuthenticated.value = res.authenticated
@@ -41,13 +49,12 @@ const logout = async () => {
   loginPassword.value = ''
 }
 
-// Computed for active request
+// 3. Request management logic
 const activeRequest = computed(() => {
   if (!requests.value) return null
   return requests.value.find(r => r.id === activeRequestId.value) || null
 })
 
-// Automatically select first request if none selected
 watch(requests, (newRequests) => {
   if (newRequests?.length) {
     newRequests.forEach((r) => {
@@ -63,7 +70,6 @@ watch(requests, (newRequests) => {
   }
 }, { immediate: true })
 
-// Poll for new requests every 2 seconds
 let pollInterval: any
 onMounted(() => {
   checkAuth()
@@ -75,13 +81,6 @@ onMounted(() => {
 onUnmounted(() => {
   if (pollInterval) clearInterval(pollInterval)
 })
-
-const responses = ref<Record<string, string>>({})
-const structuredToolCalls = ref<Record<string, any[]>>({})
-const simulateStream = ref<Record<string, boolean>>({})
-const submitting = ref<Record<string, boolean>>({})
-const finishing = ref<Record<string, boolean>>({})
-const toast = useToast()
 
 const copyToClipboard = (text: string) => {
   navigator.clipboard.writeText(text)
@@ -214,19 +213,17 @@ const getMessages = (payload: any) => {
   const extractText = (content: any): string => {
     if (typeof content === 'string') return content
     if (Array.isArray(content)) {
-      return content.map(c => c.text || c.arguments || JSON.stringify(c)).join('\n')
+      return content.map(c => c.text || c.output || c.arguments || JSON.stringify(c)).join('\n')
     }
-    return content?.text || content?.arguments || JSON.stringify(content)
+    return content?.text || content?.output || content?.arguments || JSON.stringify(content)
   }
 
-  // Support for standard Chat Completions
   if (payload.messages) {
     messages = [...payload.messages]
     if (payload.system && typeof payload.system === 'string') {
       messages.unshift({ role: 'system', content: payload.system })
     }
   } 
-  // Support for new Responses API
   else if (payload.input || payload.instructions) {
     if (payload.instructions) {
       messages.push({ role: 'system', content: payload.instructions })
@@ -239,14 +236,11 @@ const getMessages = (payload: any) => {
         if (!role) {
            if (item.type === 'message') role = 'user'
            else if (item.type === 'developer_message') role = 'system'
+           else if (item.type === 'function_call_output') role = 'tool'
            else role = 'tool'
         }
         if (role === 'developer') role = 'system'
-
-        messages.push({ 
-          role, 
-          content: extractText(item.content || item)
-        })
+        messages.push({ role, content: extractText(item.content || item) })
       })
     }
   }
@@ -269,18 +263,9 @@ const getMessages = (payload: any) => {
       })
     }
 
-    if (m.tool_calls) {
-      m.tool_calls.forEach((tc: any) => toolCalls.push(tc))
-    }
+    if (m.tool_calls) m.tool_calls.forEach((tc: any) => toolCalls.push(tc))
 
-    return {
-      role: m.role,
-      content: textContent,
-      images,
-      toolCalls,
-      toolResults,
-      tool_call_id: m.tool_call_id // OpenAI tool result role
-    }
+    return { role: m.role, content: textContent, images, toolCalls, toolResults, tool_call_id: m.tool_call_id }
   })
 }
 
