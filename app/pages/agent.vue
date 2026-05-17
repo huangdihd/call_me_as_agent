@@ -534,13 +534,13 @@ const availableTools = computed(() => {
                     </UButton>
                 </div>
 
-                <div v-if="structuredToolCalls[activeRequest.id]?.length" class="flex flex-col sm:flex-row flex-wrap gap-3 max-h-60 sm:max-h-40 overflow-y-auto p-1">
-                    <UCard v-for="(tc, idx) in structuredToolCalls[activeRequest.id]" :key="tc.id" size="sm" class="w-full sm:min-w-[280px] sm:flex-1 relative group border-primary-200 dark:border-primary-900 shadow-none bg-primary-50/30 dark:bg-primary-950/20">
+                <div v-if="structuredToolCalls[activeRequest.id]?.length" class="flex flex-col gap-4 max-h-[400px] lg:max-h-[500px] overflow-y-auto p-1 mb-2">
+                    <UCard v-for="(tc, idx) in structuredToolCalls[activeRequest.id]" :key="tc.id" size="sm" class="w-full flex-shrink-0 relative group border-primary-200 dark:border-primary-900 shadow-sm bg-primary-50/30 dark:bg-primary-950/20 transition-all">
                       <template #header>
-                        <div class="flex justify-between items-center py-0.5">
+                        <div class="flex justify-between items-center py-1">
                           <div class="flex items-center gap-2">
-                            <UIcon name="i-lucide-wrench" class="text-primary-500" />
-                            <span class="text-xs font-bold font-mono truncate max-w-[120px]">{{ tc.name }}</span>
+                            <UIcon name="i-lucide-wrench" class="text-primary-500 w-4 h-4" />
+                            <span class="text-xs font-bold font-mono text-primary-700 dark:text-primary-400">{{ tc.name }}</span>
                           </div>
                           <UButton icon="i-lucide-trash" size="xs" color="error" variant="ghost" @click="removeToolCall(activeRequest.id, idx)" />
                         </div>
