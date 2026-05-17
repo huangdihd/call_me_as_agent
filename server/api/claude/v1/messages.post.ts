@@ -14,7 +14,6 @@ export default defineEventHandler(async (event) => {
   console.log('[Claude] Received request:', body)
 
   const requestId = Math.random().toString(36).substring(2, 15)
-  const now = Math.floor(Date.now() / 1000)
 
   // Token counting
   let promptTokens = 0
@@ -103,14 +102,14 @@ export default defineEventHandler(async (event) => {
             const toolName = tc.function?.name || (tc as any).name
             const toolInput = typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : ((tc as any).input || {})
             const fullJson = JSON.stringify(toolInput)
-            
+
             completionTokens += Math.ceil(fullJson.length / 3)
 
             // 1. content_block_start
             sendSSE('content_block_start', {
               type: 'content_block_start',
               index: contentBlockIndex,
-              content_block: { type: 'tool_use', id: tcId, name: toolName, input: {} }
+              content_block: { type: 'tool_use', id: tcId, name: toolName }
             })
 
             // 2. content_block_delta (input_json_delta)
@@ -122,7 +121,7 @@ export default defineEventHandler(async (event) => {
 
             // 3. content_block_stop
             sendSSE('content_block_stop', { type: 'content_block_stop', index: contentBlockIndex })
-            
+
             contentBlockIndex++
           })
         }
@@ -150,14 +149,14 @@ export default defineEventHandler(async (event) => {
     // Non-streaming: Wait for final
     return new Promise((resolve) => {
       const bufferedContent: any[] = []
-      
+
       request.onData = (chunk) => {
         if (chunk.content) {
           completionTokens += Math.ceil(chunk.content.length / 3)
           bufferedContent.push({ type: 'text', text: chunk.content })
         }
         if (chunk.toolCalls) {
-          chunk.toolCalls.forEach(tc => {
+          chunk.toolCalls.forEach((tc) => {
             const toolInput = typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : ((tc as any).input || {})
             completionTokens += Math.ceil(JSON.stringify(toolInput).length / 3)
             bufferedContent.push({

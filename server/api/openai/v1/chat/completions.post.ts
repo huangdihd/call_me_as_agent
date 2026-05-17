@@ -60,12 +60,12 @@ export default defineEventHandler(async (event) => {
     return new Promise<void>((resolve) => {
       request.onData = async (chunk) => {
         const speed = chunk.simulateStream ? (settings.streamSpeed || 30) : 0
-        
+
         // Handle Content
         if (chunk.content) {
           const content = chunk.content
           completionTokens += Math.ceil(content.length / 3)
-          
+
           if (speed === 0) {
             sendChunk({
               id: `chatcmpl-${requestId}`,
@@ -85,7 +85,6 @@ export default defineEventHandler(async (event) => {
               })
               await new Promise(r => setTimeout(r, speed))
             }
-
           }
         }
 
@@ -142,7 +141,7 @@ export default defineEventHandler(async (event) => {
     // Non-streaming: Wait for final chunk
     return new Promise((resolve) => {
       let bufferedContent = ''
-      let bufferedTools: any[] = []
+      const bufferedTools: any[] = []
 
       request.onData = (chunk) => {
         if (chunk.content) bufferedContent += chunk.content
@@ -160,14 +159,16 @@ export default defineEventHandler(async (event) => {
               message: {
                 role: 'assistant',
                 content: bufferedContent || null,
-                tool_calls: bufferedTools.length > 0 ? bufferedTools.map((tc, i) => ({
-                    id: tc.id || `call_${Math.random().toString(36).substring(2, 9)}`,
-                    type: 'function',
-                    function: {
+                tool_calls: bufferedTools.length > 0
+                  ? bufferedTools.map((tc, i) => ({
+                      id: tc.id || `call_${Math.random().toString(36).substring(2, 9)}`,
+                      type: 'function',
+                      function: {
                         name: tc.function?.name || (tc as any).name,
                         arguments: typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || (tc as any).input || {})
-                    }
-                })) : undefined
+                      }
+                    }))
+                  : undefined
               },
               finish_reason: bufferedTools.length > 0 ? 'tool_calls' : 'stop'
             }],

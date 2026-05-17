@@ -123,9 +123,9 @@ const addToolCall = (requestId: string, tool?: any) => {
   }
 
   const toolFn = tool?.function || tool
-  const parameters = toolFn?.parameters?.properties || {}
+  const parameters = toolFn?.parameters?.properties || toolFn?.input_schema?.properties || {}
   const args: Record<string, any> = {}
-  
+
   Object.keys(parameters).forEach((key) => {
     const prop = parameters[key]
     const toolName = toolFn?.name || ''
@@ -191,12 +191,12 @@ const sendPart = async (id: string) => {
   try {
     const toolCalls = parseToolCalls(id)
     let content = responses.value[id] || ''
-    
+
     // Auto-append newline for multi-turn feel
     if (content && !content.endsWith('\n')) {
       content += '\n'
     }
-    
+
     await $fetch('/api/internal/respond', {
       method: 'POST',
       body: {
@@ -270,11 +270,14 @@ const getMessages = (payload: any) => {
 
   if (payload.messages) {
     messages = [...payload.messages]
-    if (payload.system && typeof payload.system === 'string') {
-      messages.unshift({ role: 'system', content: payload.system })
+    if (payload.system) {
+      if (typeof payload.system === 'string') {
+        messages.unshift({ role: 'system', content: payload.system })
+      } else if (Array.isArray(payload.system)) {
+        messages.unshift({ role: 'system', content: payload.system })
+      }
     }
-  } 
-  else if (payload.input || payload.instructions) {
+  } else if (payload.input || payload.instructions) {
     if (payload.instructions) {
       messages.push({ role: 'system', content: payload.instructions })
     }
@@ -284,10 +287,10 @@ const getMessages = (payload: any) => {
       payload.input.forEach((item: any) => {
         let role = item.role
         if (!role) {
-           if (item.type === 'message') role = 'user'
-           else if (item.type === 'developer_message') role = 'system'
-           else if (item.type === 'function_call_output') role = 'tool'
-           else role = 'tool'
+          if (item.type === 'message') role = 'user'
+          else if (item.type === 'developer_message') role = 'system'
+          else if (item.type === 'function_call_output') role = 'tool'
+          else role = 'tool'
         }
         if (role === 'developer') role = 'system'
         messages.push({ role, content: extractText(item.content || item) })
@@ -336,58 +339,118 @@ const availableTools = computed(() => {
 <template>
   <div class="h-screen flex flex-col bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 overflow-hidden relative">
     <!-- Auth Screen -->
-    <div v-if="!isAuthenticated" class="h-screen w-full flex items-center justify-center bg-gray-50 dark:bg-gray-900 overflow-auto p-4">
+    <div
+      v-if="!isAuthenticated"
+      class="h-screen w-full flex items-center justify-center bg-gray-50 dark:bg-gray-900 overflow-auto p-4"
+    >
       <UCard class="w-full max-w-sm shadow-xl text-gray-900 dark:text-white bg-white dark:bg-gray-900">
         <template #header>
           <div class="flex flex-col items-center gap-4 py-2">
-            <div v-if="settings?.siteLogo" class="w-16 h-16 rounded-2xl overflow-hidden shadow-md border border-gray-100 dark:border-gray-800">
-              <img :src="settings.siteLogo" class="w-full h-full object-cover">
+            <div
+              v-if="settings?.siteLogo"
+              class="w-16 h-16 rounded-2xl overflow-hidden shadow-md border border-gray-100 dark:border-gray-800"
+            >
+              <img
+                :src="settings.siteLogo"
+                class="w-full h-full object-cover"
+              >
             </div>
-            <div v-else class="w-12 h-12 rounded-xl bg-primary-500 flex items-center justify-center text-white">
-              <UIcon name="i-lucide-lock" class="w-6 h-6" />
+            <div
+              v-else
+              class="w-12 h-12 rounded-xl bg-primary-500 flex items-center justify-center text-white"
+            >
+              <UIcon
+                name="i-lucide-lock"
+                class="w-6 h-6"
+              />
             </div>
-            <h2 class="font-bold text-xl text-center">{{ t('auth_required') }}</h2>
+            <h2 class="font-bold text-xl text-center">
+              {{ t('auth_required') }}
+            </h2>
           </div>
         </template>
         <div class="space-y-4">
-          <p class="text-sm text-gray-500">{{ t('auth_desc') }}</p>
-          <UInput v-model="loginPassword" type="password" placeholder="Enter Password" autofocus icon="i-lucide-key" class="w-full" @keyup.enter="login" />
-          <UButton block color="primary" :loading="isLoggingIn" @click="login">{{ t('login') }}</UButton>
+          <p class="text-sm text-gray-500">
+            {{ t('auth_desc') }}
+          </p>
+          <UInput
+            v-model="loginPassword"
+            type="password"
+            placeholder="Enter Password"
+            autofocus
+            icon="i-lucide-key"
+            class="w-full"
+            @keyup.enter="login"
+          />
+          <UButton
+            block
+            color="primary"
+            :loading="isLoggingIn"
+            @click="login"
+          >
+            {{ t('login') }}
+          </UButton>
         </div>
       </UCard>
     </div>
 
     <!-- Main Dashboard -->
-    <div v-else class="flex flex-1 overflow-hidden relative">
+    <div
+      v-else
+      class="flex flex-1 overflow-hidden relative"
+    >
       <!-- Overlay for mobile sidebar -->
-      <div 
-        v-if="isSidebarOpen" 
+      <div
+        v-if="isSidebarOpen"
         class="fixed inset-0 bg-black/50 z-40 lg:hidden"
         @click="isSidebarOpen = false"
       />
 
       <!-- Sidebar -->
-      <aside 
+      <aside
         class="absolute inset-y-0 left-0 w-80 lg:relative lg:translate-x-0 transition-transform duration-300 z-50 border-r border-gray-200 dark:border-gray-800 flex flex-col bg-white dark:bg-gray-900"
         :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
       >
         <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-900 sticky top-0 z-10">
           <div class="flex items-center gap-3">
-            <div v-if="settings?.siteLogo" class="w-8 h-8 rounded-lg overflow-hidden border border-gray-100 dark:border-gray-800">
-                <img :src="settings.siteLogo" class="w-full h-full object-cover" />
+            <div
+              v-if="settings?.siteLogo"
+              class="w-8 h-8 rounded-lg overflow-hidden border border-gray-100 dark:border-gray-800"
+            >
+              <img
+                :src="settings.siteLogo"
+                class="w-full h-full object-cover"
+              >
             </div>
-            <div v-else class="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center text-white">
-                <UIcon name="i-lucide-bot" class="w-5 h-5" />
+            <div
+              v-else
+              class="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center text-white"
+            >
+              <UIcon
+                name="i-lucide-bot"
+                class="w-5 h-5"
+              />
             </div>
             <h2 class="font-bold text-sm text-gray-900 dark:text-white truncate max-w-[120px]">
               {{ settings?.siteTitle || 'Agent Dashboard' }}
             </h2>
           </div>
           <div class="flex items-center gap-2">
-              <UButton icon="i-lucide-home" size="xs" variant="ghost" color="neutral" to="/" />
-              <UBadge v-if="requests?.length" color="primary" variant="subtle" size="xs">
-                {{ requests.length }}
-              </UBadge>
+            <UButton
+              icon="i-lucide-home"
+              size="xs"
+              variant="ghost"
+              color="neutral"
+              to="/"
+            />
+            <UBadge
+              v-if="requests?.length"
+              color="primary"
+              variant="subtle"
+              size="xs"
+            >
+              {{ requests.length }}
+            </UBadge>
           </div>
         </div>
 
@@ -401,7 +464,11 @@ const availableTools = computed(() => {
               @click="selectRequest(req.id)"
             >
               <div class="flex justify-between items-start mb-1">
-                <UBadge :color="req.type === 'claude' ? 'info' : 'primary'" variant="subtle" size="xs">
+                <UBadge
+                  :color="req.type === 'claude' ? 'info' : 'primary'"
+                  variant="subtle"
+                  size="xs"
+                >
                   {{ req.type.toUpperCase() }}
                 </UBadge>
                 <span class="text-[10px] text-gray-400">{{ formatTimestamp(req.timestamp) }}</span>
@@ -409,29 +476,68 @@ const availableTools = computed(() => {
               <div class="text-sm font-medium truncate">
                 {{ getMessages(req.payload).slice(-1)[0]?.content || 'Multimodal/Tool Call' }}
               </div>
-              <div class="text-[10px] text-gray-500 font-mono mt-1">ID: {{ req.id.slice(0, 8) }}</div>
+              <div class="text-[10px] text-gray-500 font-mono mt-1">
+                ID: {{ req.id.slice(0, 8) }}
+              </div>
             </button>
           </template>
-          <div v-else class="flex flex-col items-center justify-center h-40 text-gray-400 text-sm italic">{{ t('no_pending') }}</div>
+          <div
+            v-else
+            class="flex flex-col items-center justify-center h-40 text-gray-400 text-sm italic"
+          >
+            {{ t('no_pending') }}
+          </div>
         </div>
 
         <div class="p-4 border-t border-gray-200 dark:border-gray-800 space-y-2 bg-white/50 dark:bg-gray-900/50">
-          <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Endpoints</div>
+          <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+            Endpoints
+          </div>
           <div class="flex flex-col gap-1">
-            <UButton variant="ghost" color="neutral" size="xs" block class="justify-start truncate" @click="copyToClipboard(`${settings?.publicBaseUrl || 'http://localhost:3000'}/api/openai/v1`)">
-              <template #leading><UIcon name="i-simple-icons-openai" /></template>
+            <UButton
+              variant="ghost"
+              color="neutral"
+              size="xs"
+              block
+              class="justify-start truncate"
+              @click="copyToClipboard(`${settings?.publicBaseUrl || 'http://localhost:3000'}/api/openai/v1`)"
+            >
+              <template #leading>
+                <UIcon name="i-simple-icons-openai" />
+              </template>
               OpenAI V1
             </UButton>
-            <UButton variant="ghost" color="neutral" size="xs" block class="justify-start truncate" @click="copyToClipboard(`${settings?.publicBaseUrl || 'http://localhost:3000'}/api/claude`)">
-              <template #leading><UIcon name="i-simple-icons-anthropic" /></template>
+            <UButton
+              variant="ghost"
+              color="neutral"
+              size="xs"
+              block
+              class="justify-start truncate"
+              @click="copyToClipboard(`${settings?.publicBaseUrl || 'http://localhost:3000'}/api/claude`)"
+            >
+              <template #leading>
+                <UIcon name="i-simple-icons-anthropic" />
+              </template>
               Claude V1
             </UButton>
           </div>
           <div class="flex items-center justify-between mt-2">
             <UColorModeButton size="sm" />
             <div class="flex items-center gap-1">
-              <UButton icon="i-lucide-settings" size="sm" variant="ghost" color="neutral" to="/settings" />
-              <UButton icon="i-lucide-log-out" size="sm" variant="ghost" color="error" @click="logout" />
+              <UButton
+                icon="i-lucide-settings"
+                size="sm"
+                variant="ghost"
+                color="neutral"
+                to="/settings"
+              />
+              <UButton
+                icon="i-lucide-log-out"
+                size="sm"
+                variant="ghost"
+                color="error"
+                @click="logout"
+              />
             </div>
           </div>
         </div>
@@ -441,20 +547,26 @@ const availableTools = computed(() => {
       <main class="flex-1 flex flex-col min-w-0 bg-white dark:bg-gray-950 h-full relative">
         <!-- Mobile Toggle Header -->
         <div class="lg:hidden p-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-900 sticky top-0 z-30">
-          <UButton 
-            icon="i-lucide-menu" 
-            variant="ghost" 
-            color="neutral" 
-            size="sm" 
-            @click="isSidebarOpen = true" 
+          <UButton
+            icon="i-lucide-menu"
+            variant="ghost"
+            color="neutral"
+            size="sm"
+            @click="isSidebarOpen = true"
           />
           <div class="flex items-center gap-2">
-            <div v-if="settings?.siteLogo" class="w-6 h-6 rounded border border-gray-100 dark:border-gray-800 overflow-hidden">
-                <img :src="settings.siteLogo" class="w-full h-full object-cover" />
+            <div
+              v-if="settings?.siteLogo"
+              class="w-6 h-6 rounded border border-gray-100 dark:border-gray-800 overflow-hidden"
+            >
+              <img
+                :src="settings.siteLogo"
+                class="w-full h-full object-cover"
+              >
             </div>
             <span class="text-xs font-bold truncate max-w-[150px]">{{ settings?.siteTitle || 'Dashboard' }}</span>
           </div>
-          <div class="w-8"></div> <!-- Spacer for balance -->
+          <div class="w-8" /> <!-- Spacer for balance -->
         </div>
 
         <template v-if="activeRequest">
@@ -462,14 +574,24 @@ const availableTools = computed(() => {
           <header class="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white/50 dark:bg-gray-950/50 backdrop-blur">
             <div>
               <div class="flex items-center gap-2">
-                <h1 class="text-lg md:text-xl font-bold text-gray-900 dark:text-white">{{ t('request_details') }}</h1>
-                <UBadge :color="activeRequest.type === 'claude' ? 'info' : 'primary'" variant="solid" size="xs">
+                <h1 class="text-lg md:text-xl font-bold text-gray-900 dark:text-white">
+                  {{ t('request_details') }}
+                </h1>
+                <UBadge
+                  :color="activeRequest.type === 'claude' ? 'info' : 'primary'"
+                  variant="solid"
+                  size="xs"
+                >
                   {{ activeRequest.type.toUpperCase() }}
                 </UBadge>
               </div>
-              <div class="text-[10px] md:text-xs text-gray-500 font-mono mt-0.5 md:mt-1 truncate max-w-[200px] md:max-w-none">ID: {{ activeRequest.id }}</div>
+              <div class="text-[10px] md:text-xs text-gray-500 font-mono mt-0.5 md:mt-1 truncate max-w-[200px] md:max-w-none">
+                ID: {{ activeRequest.id }}
+              </div>
             </div>
-            <div class="hidden sm:block text-sm text-gray-400">{{ t('received_at') }} {{ new Date(activeRequest.timestamp).toLocaleString() }}</div>
+            <div class="hidden sm:block text-sm text-gray-400">
+              {{ t('received_at') }} {{ new Date(activeRequest.timestamp).toLocaleString() }}
+            </div>
           </header>
 
           <!-- Scrollable Chat History -->
@@ -478,10 +600,18 @@ const availableTools = computed(() => {
             class="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 md:y-8 min-h-0"
           >
             <section>
-              <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">{{ t('conv_history') }}</h3>
+              <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
+                {{ t('conv_history') }}
+              </h3>
               <div class="space-y-6">
-                <div v-for="(msg, index) in getMessages(activeRequest.payload)" :key="index" class="flex flex-col w-full" :class="msg.role === 'assistant' ? 'items-end' : 'items-start'">
-                  <div class="max-w-[95%] sm:max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm border"
+                <div
+                  v-for="(msg, index) in getMessages(activeRequest.payload)"
+                  :key="index"
+                  class="flex flex-col w-full"
+                  :class="msg.role === 'assistant' ? 'items-end' : 'items-start'"
+                >
+                  <div
+                    class="max-w-[95%] sm:max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm border"
                     :class="{
                       'bg-primary-500 text-white border-primary-600': msg.role === 'assistant',
                       'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700': msg.role !== 'assistant' && msg.role !== 'tool',
@@ -491,21 +621,59 @@ const availableTools = computed(() => {
                     }"
                   >
                     <div class="text-[10px] font-bold uppercase opacity-70 mb-2 flex items-center gap-1">
-                      <UIcon v-if="msg.role === 'system'" name="i-lucide-settings" />
-                      <UIcon v-else-if="msg.role === 'user'" name="i-lucide-user" />
-                      <UIcon v-else-if="msg.role === 'tool'" name="i-lucide-wrench" />
-                      <UIcon v-else name="i-lucide-bot" />
+                      <UIcon
+                        v-if="msg.role === 'system'"
+                        name="i-lucide-settings"
+                      />
+                      <UIcon
+                        v-else-if="msg.role === 'user'"
+                        name="i-lucide-user"
+                      />
+                      <UIcon
+                        v-else-if="msg.role === 'tool'"
+                        name="i-lucide-wrench"
+                      />
+                      <UIcon
+                        v-else
+                        name="i-lucide-bot"
+                      />
                       {{ msg.role }}
-                      <span v-if="msg._is_manual" class="ml-1 text-[8px] bg-white/20 px-1 rounded font-black tracking-tighter">MANUAL</span>
+                      <span
+                        v-if="msg._is_manual"
+                        class="ml-1 text-[8px] bg-white/20 px-1 rounded font-black tracking-tighter"
+                      >MANUAL</span>
                     </div>
-                    <div v-if="msg.content" class="whitespace-pre-wrap break-words">{{ msg.content }}</div>
-                    <div v-if="msg.images.length" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <img v-for="(img, i) in msg.images" :key="i" :src="img" class="rounded-lg border border-white/20 max-h-60 w-full object-cover">
+                    <div
+                      v-if="msg.content"
+                      class="whitespace-pre-wrap break-words"
+                    >
+                      {{ msg.content }}
                     </div>
-                    <div v-if="msg.toolCalls.length" class="mt-3 space-y-2">
-                      <div v-for="(tc, i) in msg.toolCalls" :key="i" class="p-2 bg-black/10 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 overflow-hidden">
+                    <div
+                      v-if="msg.images.length"
+                      class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2"
+                    >
+                      <img
+                        v-for="(img, i) in msg.images"
+                        :key="i"
+                        :src="img"
+                        class="rounded-lg border border-white/20 max-h-60 w-full object-cover"
+                      >
+                    </div>
+                    <div
+                      v-if="msg.toolCalls.length"
+                      class="mt-3 space-y-2"
+                    >
+                      <div
+                        v-for="(tc, i) in msg.toolCalls"
+                        :key="i"
+                        class="p-2 bg-black/10 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 overflow-hidden"
+                      >
                         <div class="text-[10px] font-bold text-blue-500 mb-1 flex items-center gap-1">
-                          <UIcon name="i-lucide-play" size="10" />
+                          <UIcon
+                            name="i-lucide-play"
+                            size="10"
+                          />
                           TOOL: {{ tc.function?.name || (tc as any).name }}
                         </div>
                         <pre class="text-[10px] font-mono whitespace-pre-wrap break-all">{{ tc.function?.arguments || JSON.stringify((tc as any).input || {}) }}</pre>
@@ -522,42 +690,100 @@ const availableTools = computed(() => {
             <div class="flex flex-col w-full space-y-4">
               <div class="flex flex-col w-full space-y-2">
                 <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">{{ t('manual_response') }}</label>
-                <UTextarea v-model="responses[activeRequest.id]" :placeholder="t('text_placeholder')" :rows="3" autoresize class="w-full shadow-sm" />
+                <UTextarea
+                  v-model="responses[activeRequest.id]"
+                  :placeholder="t('text_placeholder')"
+                  :rows="3"
+                  autoresize
+                  class="w-full shadow-sm"
+                />
               </div>
 
               <!-- Structured Tool Calls -->
               <div class="flex flex-col w-full space-y-3">
                 <div class="flex items-center justify-between">
                   <label class="text-xs font-medium text-gray-500">{{ t('tool_calls') }}</label>
-                  <UButton size="xs" variant="ghost" color="neutral" @click="addToolCall(activeRequest.id)">{{ t('custom_tool') }}</UButton>
+                  <UButton
+                    size="xs"
+                    variant="ghost"
+                    color="neutral"
+                    @click="addToolCall(activeRequest.id)"
+                  >
+                    {{ t('custom_tool') }}
+                  </UButton>
                 </div>
 
                 <!-- Tool Buttons (Responsive Scroll) -->
-                <div v-if="availableTools.length" class="flex overflow-x-auto gap-1 pb-2 no-scrollbar">
-                    <UButton v-for="tool in availableTools" :key="tool.function?.name || tool.name" size="xs" variant="soft" color="primary" class="flex-shrink-0" icon="i-lucide-plus" @click="addToolCall(activeRequest.id, tool)">
+                <div
+                  v-if="availableTools.length"
+                  class="flex overflow-x-auto gap-1 pb-2 no-scrollbar"
+                >
+                  <UButton
+                    v-for="tool in availableTools"
+                    :key="tool.function?.name || tool.name"
+                    size="xs"
+                    variant="soft"
+                    color="primary"
+                    class="flex-shrink-0"
+                    icon="i-lucide-plus"
+                    @click="addToolCall(activeRequest.id, tool)"
+                  >
                     {{ tool.function?.name || tool.name }}
-                    </UButton>
+                  </UButton>
                 </div>
 
-                <div v-if="structuredToolCalls[activeRequest.id]?.length" class="flex flex-col gap-4 max-h-[30vh] sm:max-h-[400px] lg:max-h-[500px] overflow-y-auto p-1 mb-2">
-                    <UCard v-for="(tc, idx) in structuredToolCalls[activeRequest.id]" :key="tc.id" size="sm" class="w-full flex-shrink-0 relative group border-primary-200 dark:border-primary-900 shadow-sm bg-primary-50/30 dark:bg-primary-950/20 transition-all">
-                      <template #header>
-                        <div class="flex justify-between items-center py-1">
-                          <div class="flex items-center gap-2">
-                            <UIcon name="i-lucide-wrench" class="text-primary-500 w-4 h-4" />
-                            <span class="text-xs font-bold font-mono text-primary-700 dark:text-primary-400">{{ tc.name }}</span>
-                          </div>
-                          <UButton icon="i-lucide-trash" size="xs" color="error" variant="ghost" @click="removeToolCall(activeRequest.id, idx)" />
+                <div
+                  v-if="structuredToolCalls[activeRequest.id]?.length"
+                  class="flex flex-col gap-4 max-h-[30vh] sm:max-h-[400px] lg:max-h-[500px] overflow-y-auto p-1 mb-2"
+                >
+                  <UCard
+                    v-for="(tc, idx) in structuredToolCalls[activeRequest.id]"
+                    :key="tc.id"
+                    size="sm"
+                    class="w-full flex-shrink-0 relative group border-primary-200 dark:border-primary-900 shadow-sm bg-primary-50/30 dark:bg-primary-950/20 transition-all"
+                  >
+                    <template #header>
+                      <div class="flex justify-between items-center py-1">
+                        <div class="flex items-center gap-2">
+                          <UIcon
+                            name="i-lucide-wrench"
+                            class="text-primary-500 w-4 h-4"
+                          />
+                          <span class="text-xs font-bold font-mono text-primary-700 dark:text-primary-400">{{ tc.name }}</span>
                         </div>
-                      </template>
-                      <div class="grid grid-cols-1 gap-2">
-                        <div v-for="(val, key) in tc.arguments" :key="key" class="space-y-1">
-                          <label class="text-[9px] font-bold text-gray-400 uppercase">{{ key }}</label>
-                          <ToolParameterEditor v-model="tc.arguments[key]" :schema="tc.parameters?.[key]" :name="key as string" />
-                        </div>
-                        <UButton size="xs" variant="ghost" icon="i-lucide-plus" class="w-fit" @click="promptNewParameter(tc)">{{ t('add_parameter') }}</UButton>
+                        <UButton
+                          icon="i-lucide-trash"
+                          size="xs"
+                          color="error"
+                          variant="ghost"
+                          @click="removeToolCall(activeRequest.id, idx)"
+                        />
                       </div>
-                    </UCard>
+                    </template>
+                    <div class="grid grid-cols-1 gap-2">
+                      <div
+                        v-for="(val, key) in tc.arguments"
+                        :key="key"
+                        class="space-y-1"
+                      >
+                        <label class="text-[9px] font-bold text-gray-400 uppercase">{{ key }}</label>
+                        <ToolParameterEditor
+                          v-model="tc.arguments[key]"
+                          :schema="tc.parameters?.[key]"
+                          :name="key as string"
+                        />
+                      </div>
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-lucide-plus"
+                        class="w-fit"
+                        @click="promptNewParameter(tc)"
+                      >
+                        {{ t('add_parameter') }}
+                      </UButton>
+                    </div>
+                  </UCard>
                 </div>
               </div>
 
@@ -565,15 +791,34 @@ const availableTools = computed(() => {
               <div class="flex flex-col sm:flex-row justify-between items-center gap-4 pt-2 border-t border-gray-50 dark:border-gray-800">
                 <div class="flex items-center gap-2">
                   <span class="text-xs text-gray-500 font-medium">{{ t('simulate_stream') }}</span>
-                  <USwitch v-model="simulateStream[activeRequest.id]" size="sm" />
+                  <USwitch
+                    v-model="simulateStream[activeRequest.id]"
+                    size="sm"
+                  />
                 </div>
                 <div class="flex items-center gap-2 w-full sm:w-auto">
-                  <UButton :loading="submitting[activeRequest.id]" color="neutral" variant="soft" size="lg" class="flex-1 sm:flex-none justify-center" :disabled="!responses[activeRequest?.id || ''] && (!structuredToolCalls[activeRequest?.id || ''] || structuredToolCalls[activeRequest?.id || '']?.length === 0)" @click="sendPart(activeRequest.id)">
+                  <UButton
+                    :loading="submitting[activeRequest.id]"
+                    color="neutral"
+                    variant="soft"
+                    size="lg"
+                    class="flex-1 sm:flex-none justify-center"
+                    :disabled="!responses[activeRequest?.id || ''] && (!structuredToolCalls[activeRequest?.id || ''] || structuredToolCalls[activeRequest?.id || '']?.length === 0)"
+                    @click="sendPart(activeRequest.id)"
+                  >
                     {{ t('send_to_client') }}
                   </UButton>
-                  <UButton :loading="finishing[activeRequest.id]" color="primary" size="lg" class="flex-1 sm:flex-none justify-center" @click="finish(activeRequest.id)">
+                  <UButton
+                    :loading="finishing[activeRequest.id]"
+                    color="primary"
+                    size="lg"
+                    class="flex-1 sm:flex-none justify-center"
+                    @click="finish(activeRequest.id)"
+                  >
                     {{ t('finish_request') }}
-                    <template #trailing><UIcon name="i-lucide-check-circle" /></template>
+                    <template #trailing>
+                      <UIcon name="i-lucide-check-circle" />
+                    </template>
                   </UButton>
                 </div>
               </div>
@@ -581,12 +826,22 @@ const availableTools = computed(() => {
           </section>
         </template>
 
-        <div v-else class="flex-1 flex flex-col items-center justify-center text-gray-500 p-6 text-center">
+        <div
+          v-else
+          class="flex-1 flex flex-col items-center justify-center text-gray-500 p-6 text-center"
+        >
           <div class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-900 flex items-center justify-center mb-4">
-            <UIcon name="i-lucide-message-square" class="w-8 h-8 text-gray-300" />
+            <UIcon
+              name="i-lucide-message-square"
+              class="w-8 h-8 text-gray-300"
+            />
           </div>
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-2">{{ t('select_request') }}</h2>
-          <p class="text-sm max-w-xs">{{ t('select_request_desc') }}</p>
+          <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-2">
+            {{ t('select_request') }}
+          </h2>
+          <p class="text-sm max-w-xs">
+            {{ t('select_request_desc') }}
+          </p>
         </div>
       </main>
     </div>

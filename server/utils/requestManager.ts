@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 
 export interface ToolCall {
   id: string
@@ -50,7 +49,7 @@ export const getPendingRequests = () => {
     id,
     type,
     payload,
-    timestamp,
+    timestamp
   }))
 }
 

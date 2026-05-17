@@ -83,18 +83,18 @@ export default defineEventHandler(async (event) => {
           totalAssistantText += content
           completionTokens += Math.ceil(content.length / 3)
           const itemId = `item_${Math.random().toString(36).substring(2, 9)}`
-          
+
           emit('response.output_item.added', {
-              response_id: `resp_${requestId}`,
-              output_index: outputIndex,
-              item: { id: itemId, type: 'message', status: 'in_progress', role: 'assistant', content: [] }
+            response_id: `resp_${requestId}`,
+            output_index: outputIndex,
+            item: { id: itemId, type: 'message', status: 'in_progress', role: 'assistant', content: [] }
           })
           emit('response.content_part.added', {
-              response_id: `resp_${requestId}`,
-              item_id: itemId,
-              output_index: outputIndex,
-              content_index: 0,
-              part: { type: 'output_text', text: '', annotations: [] }
+            response_id: `resp_${requestId}`,
+            item_id: itemId,
+            output_index: outputIndex,
+            content_index: 0,
+            part: { type: 'output_text', text: '', annotations: [] }
           })
 
           if (speed === 0) {
@@ -119,32 +119,32 @@ export default defineEventHandler(async (event) => {
           }
 
           const completedItem = {
-              id: itemId,
-              type: 'message',
-              status: 'completed',
-              role: 'assistant',
-              content: [{ type: 'output_text', text: content, annotations: [] }]
+            id: itemId,
+            type: 'message',
+            status: 'completed',
+            role: 'assistant',
+            content: [{ type: 'output_text', text: content, annotations: [] }]
           }
           finalOutputItems.push(completedItem)
 
           emit('response.output_text.done', {
-              response_id: `resp_${requestId}`,
-              item_id: itemId,
-              output_index: outputIndex,
-              content_index: 0,
-              text: content
+            response_id: `resp_${requestId}`,
+            item_id: itemId,
+            output_index: outputIndex,
+            content_index: 0,
+            text: content
           })
           emit('response.content_part.done', {
-              response_id: `resp_${requestId}`,
-              item_id: itemId,
-              output_index: outputIndex,
-              content_index: 0,
-              part: completedItem.content[0]
+            response_id: `resp_${requestId}`,
+            item_id: itemId,
+            output_index: outputIndex,
+            content_index: 0,
+            part: completedItem.content[0]
           })
           emit('response.output_item.done', {
-              response_id: `resp_${requestId}`,
-              output_index: outputIndex,
-              item: completedItem
+            response_id: `resp_${requestId}`,
+            output_index: outputIndex,
+            item: completedItem
           })
           outputIndex++
         }
@@ -156,16 +156,16 @@ export default defineEventHandler(async (event) => {
             const callId = tc.id || `call_${Math.random().toString(36).substring(2, 9)}`
             const toolName = tc.function?.name || (tc as any).name
             const formattedArgs = typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || (tc as any).input || {})
-            
+
             completionTokens += Math.ceil(formattedArgs.length / 3)
 
-            const toolItem = { 
-              id: tcItemId, 
-              type: 'function_call', 
-              status: 'completed', 
+            const toolItem = {
+              id: tcItemId,
+              type: 'function_call',
+              status: 'completed',
               call_id: callId,
-              name: toolName, 
-              arguments: formattedArgs 
+              name: toolName,
+              arguments: formattedArgs
             }
             finalOutputItems.push(toolItem)
 
@@ -197,9 +197,9 @@ export default defineEventHandler(async (event) => {
 
         if (chunk.isFinal) {
           clearInterval(keepAliveTimer)
-          const usage = { 
-            prompt_tokens: promptTokens, 
-            completion_tokens: completionTokens, 
+          const usage = {
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
             total_tokens: promptTokens + completionTokens,
             input_tokens: promptTokens,
             output_tokens: completionTokens
@@ -207,7 +207,7 @@ export default defineEventHandler(async (event) => {
           const finalResponse = buildBaseResponse('completed', finalOutputItems, usage, totalAssistantText)
 
           // --- TERMINATION SEQUENCE ---
-          
+
           // 1. Send response.completed (Codex Handshake)
           emit('response.completed', {
             response: finalResponse
@@ -242,16 +242,16 @@ export default defineEventHandler(async (event) => {
           finalOutput.push({ id: `item_${Math.random().toString(36).substring(2, 7)}`, type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: chunk.content, annotations: [] }] })
         }
         if (chunk.toolCalls) {
-          chunk.toolCalls.forEach(tc => {
+          chunk.toolCalls.forEach((tc) => {
             const formattedArgs = typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || (tc as any).input || {})
             completionTokens += Math.ceil(formattedArgs.length / 3)
-            finalOutput.push({ 
-                id: `item_${Math.random().toString(36).substring(2, 7)}`, 
-                type: 'function_call', 
-                status: 'completed', 
-                name: tc.function?.name || (tc as any).name, 
-                arguments: formattedArgs,
-                call_id: tc.id || `call_${Math.random().toString(36).substring(2, 9)}`
+            finalOutput.push({
+              id: `item_${Math.random().toString(36).substring(2, 7)}`,
+              type: 'function_call',
+              status: 'completed',
+              name: tc.function?.name || (tc as any).name,
+              arguments: formattedArgs,
+              call_id: tc.id || `call_${Math.random().toString(36).substring(2, 9)}`
             })
           })
         }
