@@ -8,11 +8,13 @@ export interface AppSettings {
   // UI Customization
   siteTitle: string
   siteSubtitle: string
+  siteLogo: string
   publicBaseUrl: string
   primaryColor: string
   language: 'zh' | 'en'
   pendingRequestsLabel: string
   streamSpeed: number // ms delay between characters
+  keepAliveInterval: number // seconds between keep-alive pings
   // Visibility Toggles
   showPendingCountPublic: boolean
   showApiKeyPublic: boolean
@@ -23,6 +25,7 @@ const defaultSettings: AppSettings = {
   apiKey: 'sk-human-agent',
   siteTitle: 'Call Me As Agent',
   siteSubtitle: 'A Human-in-the-loop LLM Proxy Service',
+  siteLogo: '',
   publicBaseUrl: 'http://localhost:3000',
   primaryColor: 'green',
   language: 'zh',

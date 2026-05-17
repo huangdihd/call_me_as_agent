@@ -19,6 +19,7 @@ const translations = {
     response_sent: '回复已成功发送',
     response_failed: '回复发送失败',
     copied: '已复制到剪贴板',
+    upload: '上传图片',
 
     // Index Page
     pending_requests: '待处理请求',
@@ -60,6 +61,8 @@ const translations = {
     site_title_desc: '公共状态页上显示的名称。',
     site_subtitle: '站点副标题',
     site_subtitle_desc: '主页标题下方的描述文字。',
+    site_logo: '站点 Logo',
+    site_logo_desc: '站点显示的图标地址或 Base64 字符串（留空显示默认图标）。',
     pending_requests_label: '待处理请求标签',
     pending_requests_label_desc: '自定义“待处理请求”卡片的文字（留空使用默认值）。',
     primary_color: '主题颜色',
@@ -101,6 +104,7 @@ const translations = {
     response_sent: 'Response sent successfully',
     response_failed: 'Failed to submit response',
     copied: 'Copied to clipboard',
+    upload: 'Upload Image',
 
     // Index Page
     pending_requests: 'Pending Requests',
@@ -142,6 +146,8 @@ const translations = {
     site_title_desc: 'The name displayed on the public status page.',
     site_subtitle: 'Site Subtitle',
     site_subtitle_desc: 'Description text below the main title on the home page.',
+    site_logo: 'Site Logo',
+    site_logo_desc: 'The icon URL or Base64 string displayed on the site (leave empty for default).',
     pending_requests_label: 'Pending Requests Label',
     pending_requests_label_desc: 'Custom text for "Pending Requests" card (leave empty for default).',
     primary_color: 'Primary Theme Color',

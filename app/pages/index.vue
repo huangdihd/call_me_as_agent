@@ -47,7 +47,20 @@ const siteSubtitle = computed(() => settings.value?.siteSubtitle || 'A Human-in-
       <!-- Hero / Logo -->
       <header class="mb-10 text-center animate-in fade-in duration-500">
         <div class="flex justify-center mb-4">
-          <div class="w-16 h-16 rounded-2xl bg-primary-500 flex items-center justify-center shadow-lg shadow-primary-500/20 text-white">
+          <div
+            v-if="settings?.siteLogo"
+            class="w-20 h-20 rounded-2xl overflow-hidden shadow-lg border border-white dark:border-gray-800"
+          >
+            <img
+              :src="settings.siteLogo"
+              class="w-full h-full object-cover"
+              :alt="siteTitle"
+            >
+          </div>
+          <div
+            v-else
+            class="w-16 h-16 rounded-2xl bg-primary-500 flex items-center justify-center shadow-lg shadow-primary-500/20 text-white"
+          >
             <UIcon
               name="i-lucide-bot"
               class="w-10 h-10"

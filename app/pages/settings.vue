@@ -12,6 +12,7 @@ const settingsForm = ref({
   apiKey: '',
   siteTitle: '',
   siteSubtitle: '',
+  siteLogo: '',
   pendingRequestsLabel: '',
   streamSpeed: 30,
   keepAliveInterval: 15,
@@ -21,6 +22,32 @@ const settingsForm = ref({
   showPendingCountPublic: true,
   showApiKeyPublic: true
 })
+
+const logoInput = ref<HTMLInputElement | null>(null)
+
+const triggerLogoUpload = () => {
+  logoInput.value?.click()
+}
+
+const onLogoUpload = (e: Event) => {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+
+  if (file.size > 2 * 1024 * 1024) {
+    toast.add({ title: 'File too large (max 2MB)', color: 'error' })
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = (event) => {
+    settingsForm.value.siteLogo = event.target?.result as string
+  }
+  reader.readAsDataURL(file)
+}
+
+const clearLogo = () => {
+  settingsForm.value.siteLogo = ''
+}
 
 const isSaving = ref(false)
 const toast = useToast()
@@ -213,6 +240,64 @@ const saveSettings = async () => {
                 placeholder="A Human-in-the-loop LLM Proxy Service"
                 class="w-full"
               />
+            </UFormField>
+
+            <UFormField
+              :label="t('site_logo')"
+              :description="t('site_logo_desc')"
+            >
+              <div class="flex items-center gap-4">
+                <div
+                  v-if="settingsForm.siteLogo"
+                  class="w-16 h-16 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 flex-shrink-0 bg-white dark:bg-gray-900"
+                >
+                  <img
+                    :src="settingsForm.siteLogo"
+                    class="w-full h-full object-cover"
+                  >
+                </div>
+                <div
+                  v-else
+                  class="w-16 h-16 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-800 flex items-center justify-center text-gray-400 flex-shrink-0"
+                >
+                  <UIcon
+                    name="i-lucide-image"
+                    class="w-6 h-6"
+                  />
+                </div>
+
+                <div class="flex flex-col gap-2">
+                  <div class="flex items-center gap-2">
+                    <UButton
+                      size="xs"
+                      color="neutral"
+                      variant="soft"
+                      icon="i-lucide-upload"
+                      @click="triggerLogoUpload"
+                    >
+                      {{ t('upload') }}
+                    </UButton>
+                    <UButton
+                      v-if="settingsForm.siteLogo"
+                      size="xs"
+                      color="error"
+                      variant="ghost"
+                      icon="i-lucide-trash"
+                      @click="clearLogo"
+                    />
+                  </div>
+                  <p class="text-[10px] text-gray-400">
+                    Max size: 2MB. Recommended square aspect ratio.
+                  </p>
+                </div>
+                <input
+                  ref="logoInput"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="onLogoUpload"
+                >
+              </div>
             </UFormField>
 
             <UFormField

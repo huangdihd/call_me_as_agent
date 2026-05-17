@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive'
     })
-    
+
     keepAliveTimer = setInterval(() => {
       // Send a SSE comment with a zero-width space to keep the connection alive
       event.node.res.write(': \u200b\n\n')

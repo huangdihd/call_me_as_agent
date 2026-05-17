@@ -7,6 +7,7 @@ interface PendingRequest {
 }
 
 const { data: requests, refresh } = useFetch<PendingRequest[]>('/api/internal/requests')
+const { data: settings } = useFetch<any>('/api/settings')
 const activeRequestId = ref<string | null>(null)
 const isAuthenticated = ref(true)
 const loginPassword = ref('')
@@ -248,14 +249,28 @@ const availableTools = computed(() => {
       v-if="!isAuthenticated"
       class="h-screen w-full flex items-center justify-center bg-gray-50 dark:bg-gray-900"
     >
-      <UCard class="w-full max-w-sm shadow-xl">
+      <UCard class="w-full max-w-sm shadow-xl text-gray-900 dark:text-white bg-white dark:bg-gray-900">
         <template #header>
-          <div class="flex items-center gap-2 text-primary-500">
-            <UIcon
-              name="i-lucide-lock"
-              class="w-5 h-5"
-            />
-            <h2 class="font-bold text-xl text-gray-900 dark:text-white">
+          <div class="flex flex-col items-center gap-4 py-2">
+            <div
+              v-if="settings?.siteLogo"
+              class="w-16 h-16 rounded-2xl overflow-hidden shadow-md border border-gray-100 dark:border-gray-800"
+            >
+              <img
+                :src="settings.siteLogo"
+                class="w-full h-full object-cover"
+              >
+            </div>
+            <div
+              v-else
+              class="w-12 h-12 rounded-xl bg-primary-500 flex items-center justify-center text-white"
+            >
+              <UIcon
+                name="i-lucide-lock"
+                class="w-6 h-6"
+              />
+            </div>
+            <h2 class="font-bold text-xl text-center">
               {{ t('auth_required') }}
             </h2>
           </div>
@@ -291,27 +306,31 @@ const availableTools = computed(() => {
     >
       <!-- Sidebar -->
       <aside class="w-80 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 flex flex-col bg-gray-50/50 dark:bg-gray-900/50">
-        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-          <div class="flex items-center gap-2 text-primary-500">
-            <UButton
-              icon="i-lucide-home"
-              size="xs"
-              variant="ghost"
-              color="neutral"
-              to="/"
-            />
-            <h2 class="font-bold text-lg text-gray-900 dark:text-white">
-              {{ t('requests_list') }}
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-white dark:bg-gray-900 sticky top-0 z-10">
+          <div class="flex items-center gap-3">
+            <div v-if="settings?.siteLogo" class="w-8 h-8 rounded-lg overflow-hidden border border-gray-100 dark:border-gray-800">
+                <img :src="settings.siteLogo" class="w-full h-full object-cover" />
+            </div>
+            <div v-else class="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center text-white">
+                <UIcon name="i-lucide-bot" class="w-5 h-5" />
+            </div>
+            <h2 class="font-bold text-sm text-gray-900 dark:text-white truncate max-w-[120px]">
+              {{ settings?.siteTitle || 'Agent Dashboard' }}
             </h2>
           </div>
-          <UBadge
-            v-if="requests?.length"
-            color="primary"
-            variant="subtle"
-          >
-            {{ requests.length }}
-          </UBadge>
+          <div class="flex items-center gap-2">
+              <UButton icon="i-lucide-home" size="xs" variant="ghost" color="neutral" to="/" />
+              <UBadge
+                v-if="requests?.length"
+                color="primary"
+                variant="subtle"
+                size="xs"
+              >
+                {{ requests.length }}
+              </UBadge>
+          </div>
         </div>
+
 
         <div class="flex-1 overflow-y-auto p-2 space-y-1">
           <template v-if="requests?.length">

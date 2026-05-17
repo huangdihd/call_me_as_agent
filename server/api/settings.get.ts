@@ -4,6 +4,7 @@ export default defineEventHandler((_event) => {
   return {
     siteTitle: settings.siteTitle,
     siteSubtitle: settings.siteSubtitle,
+    siteLogo: settings.siteLogo,
     publicBaseUrl: settings.publicBaseUrl,
     primaryColor: settings.primaryColor,
     language: settings.language,
