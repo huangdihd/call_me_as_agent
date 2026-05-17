@@ -1,0 +1,29 @@
+{
+  "name": "call_me_as_agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "@ant-design-vue/nuxt": "1.4.6",
+    "@iconify-json/lucide": "^1.2.106",
+    "@iconify-json/simple-icons": "^1.2.81",
+    "@nuxt/ui": "^4.7.1",
+    "ant-design-vue": "^4.2.6",
+    "nuxt": "^4.4.5",
+    "tailwindcss": "^4.3.0"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.15.2",
+    "eslint": "^10.3.0",
+    "typescript": "^6.0.3",
+    "vue-tsc": "^3.2.8"
+  },
+  "packageManager": "pnpm@10.33.4"
+}
