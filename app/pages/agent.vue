@@ -100,7 +100,7 @@ const selectRequest = (id: string) => {
 }
 
 // Scroll when active request changes or messages update
-watch([activeRequestId, requests, sentHistory], () => {
+watch([activeRequestId], () => {
   scrollToBottom()
 }, { deep: true })
 
@@ -218,6 +218,7 @@ const sendPart = async (id: string) => {
     responses.value[id] = ''
     structuredToolCalls.value[id] = []
     toast.add({ title: t('response_sent'), color: 'success' })
+    scrollToBottom()
   } catch (error) {
     console.error('Failed to send part:', error)
     toast.add({ title: t('response_failed'), color: 'error' })
@@ -248,6 +249,7 @@ const finish = async (id: string) => {
     delete sentHistory.value[id]
     await refresh()
     toast.add({ title: t('response_sent'), color: 'success' })
+    scrollToBottom()
   } catch (error) {
     console.error('Failed to finish request:', error)
     toast.add({ title: t('response_failed'), color: 'error' })
@@ -263,8 +265,16 @@ const getMessages = (payload: any) => {
   const extractText = (content: any): string => {
     if (typeof content === 'string') return content
     if (Array.isArray(content)) {
-      return content.map(c => c.text || c.output || c.arguments || JSON.stringify(c)).join('\n')
+      return content.map((c) => {
+        if (typeof c === 'string') return c
+        if (c.type === 'text') return c.text
+        if (c.type === 'tool_use') return `[Tool Use: ${c.name}]`
+        if (c.type === 'tool_result') return extractText(c.content)
+        return c.text || c.output || c.arguments || JSON.stringify(c)
+      }).join('\n')
     }
+    if (content?.type === 'text') return content.text
+    if (content?.type === 'tool_result') return extractText(content.content)
     return content?.text || content?.output || content?.arguments || JSON.stringify(content)
   }
 
@@ -307,22 +317,49 @@ const getMessages = (payload: any) => {
     const toolCalls: any[] = []
     const toolResults: any[] = []
     let textContent = ''
+    let role = m.role
 
     if (typeof m.content === 'string') {
       textContent = m.content
     } else if (Array.isArray(m.content)) {
       m.content.forEach((c: any) => {
-        if (c.type === 'text') textContent += (textContent ? '\n' : '') + c.text
-        if (c.type === 'image_url') images.push(c.image_url.url)
-        if (c.type === 'image') images.push(`data:${c.source.media_type};base64,${c.source.data}`)
-        if (c.type === 'tool_use') toolCalls.push(c)
-        if (c.type === 'tool_result') toolResults.push(c)
+        if (c.type === 'text') {
+          textContent += (textContent ? '\n' : '') + c.text
+        } else if (c.type === 'image_url') {
+          images.push(c.image_url.url)
+        } else if (c.type === 'image') {
+          images.push(`data:${c.source.media_type};base64,${c.source.data}`)
+        } else if (c.type === 'tool_use') {
+          toolCalls.push(c)
+        } else if (c.type === 'tool_result') {
+          toolResults.push({
+            ...c,
+            displayContent: extractText(c.content)
+          })
+          role = 'tool'
+        } else if (c.type === 'thinking' || c.type === 'thought') {
+          textContent += (textContent ? '\n' : '') + `> Thinking: ${c.thinking || c.thought || c.text || JSON.stringify(c)}`
+        } else {
+          // Fallback for unknown block types
+          const fallbackText = c.text || c.output || (typeof c === 'object' ? JSON.stringify(c) : String(c))
+          if (fallbackText && fallbackText !== '{}') {
+            textContent += (textContent ? '\n' : '') + fallbackText
+          }
+        }
       })
     }
 
     if (m.tool_calls) m.tool_calls.forEach((tc: any) => toolCalls.push(tc))
 
-    return { role: m.role, content: textContent, images, toolCalls, toolResults, tool_call_id: m.tool_call_id, _is_manual: m._is_manual }
+    return {
+      role,
+      content: textContent,
+      images,
+      toolCalls,
+      toolResults,
+      tool_call_id: m.tool_call_id,
+      _is_manual: m._is_manual
+    }
   })
 }
 
@@ -607,76 +644,99 @@ const availableTools = computed(() => {
                 <div
                   v-for="(msg, index) in getMessages(activeRequest.payload)"
                   :key="index"
-                  class="flex flex-col w-full"
-                  :class="msg.role === 'assistant' ? 'items-end' : 'items-start'"
                 >
                   <div
-                    class="max-w-[95%] sm:max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm border"
-                    :class="{
-                      'bg-primary-500 text-white border-primary-600': msg.role === 'assistant',
-                      'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700': msg.role !== 'assistant' && msg.role !== 'tool',
-                      'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50': msg.role === 'tool',
-                      'italic': msg.role === 'system',
-                      'ring-2 ring-primary-500/30': msg._is_manual
-                    }"
+                    v-if="msg.content.trim() || msg.images.length || msg.toolCalls.length || msg.toolResults.length"
+                    class="flex flex-col w-full"
+                    :class="msg.role === 'assistant' ? 'items-end' : 'items-start'"
                   >
-                    <div class="text-[10px] font-bold uppercase opacity-70 mb-2 flex items-center gap-1">
-                      <UIcon
-                        v-if="msg.role === 'system'"
-                        name="i-lucide-settings"
-                      />
-                      <UIcon
-                        v-else-if="msg.role === 'user'"
-                        name="i-lucide-user"
-                      />
-                      <UIcon
-                        v-else-if="msg.role === 'tool'"
-                        name="i-lucide-wrench"
-                      />
-                      <UIcon
-                        v-else
-                        name="i-lucide-bot"
-                      />
-                      {{ msg.role }}
-                      <span
-                        v-if="msg._is_manual"
-                        class="ml-1 text-[8px] bg-white/20 px-1 rounded font-black tracking-tighter"
-                      >MANUAL</span>
-                    </div>
                     <div
-                      v-if="msg.content"
-                      class="whitespace-pre-wrap break-words"
+                      class="max-w-[95%] sm:max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm border"
+                      :class="{
+                        'bg-primary-500 text-white border-primary-600': msg.role === 'assistant',
+                        'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700': msg.role !== 'assistant' && msg.role !== 'tool',
+                        'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50': msg.role === 'tool',
+                        'italic': msg.role === 'system',
+                        'ring-2 ring-primary-500/30': msg._is_manual
+                      }"
                     >
-                      {{ msg.content }}
-                    </div>
-                    <div
-                      v-if="msg.images.length"
-                      class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2"
-                    >
-                      <img
-                        v-for="(img, i) in msg.images"
-                        :key="i"
-                        :src="img"
-                        class="rounded-lg border border-white/20 max-h-60 w-full object-cover"
-                      >
-                    </div>
-                    <div
-                      v-if="msg.toolCalls.length"
-                      class="mt-3 space-y-2"
-                    >
+                      <div class="text-[10px] font-bold uppercase opacity-70 mb-2 flex items-center gap-1">
+                        <UIcon
+                          v-if="msg.role === 'system'"
+                          name="i-lucide-settings"
+                        />
+                        <UIcon
+                          v-else-if="msg.role === 'user'"
+                          name="i-lucide-user"
+                        />
+                        <UIcon
+                          v-else-if="msg.role === 'tool'"
+                          name="i-lucide-wrench"
+                        />
+                        <UIcon
+                          v-else
+                          name="i-lucide-bot"
+                        />
+                        {{ msg.role }}
+                        <span
+                          v-if="msg._is_manual"
+                          class="ml-1 text-[8px] bg-white/20 px-1 rounded font-black tracking-tighter"
+                        >MANUAL</span>
+                      </div>
                       <div
-                        v-for="(tc, i) in msg.toolCalls"
-                        :key="i"
-                        class="p-2 bg-black/10 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 overflow-hidden"
+                        v-if="msg.content"
+                        class="whitespace-pre-wrap break-words"
                       >
-                        <div class="text-[10px] font-bold text-blue-500 mb-1 flex items-center gap-1">
-                          <UIcon
-                            name="i-lucide-play"
-                            size="10"
-                          />
-                          TOOL: {{ tc.function?.name || (tc as any).name }}
+                        {{ msg.content }}
+                      </div>
+                      <div
+                        v-if="msg.images.length"
+                        class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2"
+                      >
+                        <img
+                          v-for="(img, i) in msg.images"
+                          :key="i"
+                          :src="img"
+                          class="rounded-lg border border-white/20 max-h-60 w-full object-cover"
+                        >
+                      </div>
+                      <div
+                        v-if="msg.toolCalls.length"
+                        class="mt-3 space-y-2"
+                      >
+                        <div
+                          v-for="(tc, i) in msg.toolCalls"
+                          :key="i"
+                          class="p-2 bg-black/10 dark:bg-white/5 rounded-lg border border-black/5 dark:border-white/5 overflow-hidden"
+                        >
+                          <div class="text-[10px] font-bold text-blue-500 mb-1 flex items-center gap-1">
+                            <UIcon
+                              name="i-lucide-play"
+                              size="10"
+                            />
+                            TOOL: {{ tc.function?.name || (tc as any).name }}
+                          </div>
+                          <pre class="text-[10px] font-mono whitespace-pre-wrap break-all">{{ tc.function?.arguments || JSON.stringify((tc as any).input || {}) }}</pre>
                         </div>
-                        <pre class="text-[10px] font-mono whitespace-pre-wrap break-all">{{ tc.function?.arguments || JSON.stringify((tc as any).input || {}) }}</pre>
+                      </div>
+                      <div
+                        v-if="msg.toolResults.length"
+                        class="mt-3 space-y-2"
+                      >
+                        <div
+                          v-for="(tr, i) in msg.toolResults"
+                          :key="i"
+                          class="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 overflow-hidden"
+                        >
+                          <div class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                            <UIcon
+                              name="i-lucide-check-circle"
+                              size="10"
+                            />
+                            RESULT: {{ tr.tool_use_id }}
+                          </div>
+                          <pre class="text-[10px] font-mono whitespace-pre-wrap break-all">{{ tr.displayContent || tr.content || tr.output || JSON.stringify(tr) }}</pre>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -770,7 +830,7 @@ const availableTools = computed(() => {
                         <ToolParameterEditor
                           v-model="tc.arguments[key]"
                           :schema="tc.parameters?.[key]"
-                          :name="key as string"
+                          :name="key as unknown as string"
                         />
                       </div>
                       <UButton
