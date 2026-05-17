@@ -2,13 +2,32 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 export interface AppSettings {
+  // Auth
   enableApiKeyAuth: boolean
   apiKey: string
+  // UI Customization
+  siteTitle: string
+  siteSubtitle: string
+  publicBaseUrl: string
+  primaryColor: string
+  language: 'zh' | 'en'
+  pendingRequestsLabel: string
+  // Visibility Toggles
+  showPendingCountPublic: boolean
+  showApiKeyPublic: boolean
 }
 
 const defaultSettings: AppSettings = {
   enableApiKeyAuth: false,
-  apiKey: 'sk-human-agent'
+  apiKey: 'sk-human-agent',
+  siteTitle: 'Call Me As Agent',
+  siteSubtitle: 'A Human-in-the-loop LLM Proxy Service',
+  publicBaseUrl: 'http://localhost:3000',
+  primaryColor: 'green',
+  language: 'zh',
+  pendingRequestsLabel: '',
+  showPendingCountPublic: true,
+  showApiKeyPublic: true
 }
 
 const settingsPath = path.resolve(process.cwd(), '.data', 'settings.json')
