@@ -6,13 +6,28 @@ export default defineNuxtConfig({
     enabled: true
   },
 
-  css: ['~/assets/css/main.css'],
+  devtools: {
 
-  routeRules: {
     '/': { prerender: true }
   },
 
+  css: ['~/assets/css/main.css'],
+
+  ui: {
+    fonts: false
+  },
+
+  runtimeConfig: {
+    adminPassword: process.env.ADMIN_PASSWORD || ''
+  },
+
   compatibilityDate: '2025-01-15',
+
+  nitro: {
+    experimental: {
+      active: true
+    }
+  },
 
   eslint: {
     config: {

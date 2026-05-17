@@ -1,64 +1,89 @@
-# Nuxt Starter Template
+# Call Me As Agent
 
-[![Nuxt UI](https://img.shields.io/badge/Made%20with-Nuxt%20UI-00DC82?logo=nuxt&labelColor=020420)](https://ui.nuxt.com)
+像用agent一样调用我❤
 
-Use this template to get started with [Nuxt UI](https://ui.nuxt.com) quickly.
+一个可以让自己变成一个公用AI Agent给别人干活的项目, 想法借鉴自 https://b23.tv/BLyqezX
 
-- [Live demo](https://starter-template.nuxt.dev/)
-- [Documentation](https://ui.nuxt.com/docs/getting-started/installation/nuxt)
+一个“人工介入”（Human-in-the-loop）的 LLM 服务端。它允许你拦截、监控并手动回复 LLM API 请求。它支持 **OpenAI** 和 **Claude (Anthropic)** 格式，旨在成为 OpenCode 等工具中真实 LLM API 的替代方案。
 
-<a href="https://starter-template.nuxt.dev/" target="_blank">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://ui.nuxt.com/assets/templates/nuxt/starter-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="https://ui.nuxt.com/assets/templates/nuxt/starter-light.png">
-    <img alt="Nuxt Starter Template" src="https://ui.nuxt.com/assets/templates/nuxt/starter-light.png" width="830" height="466">
-  </picture>
-</a>
+## 🌟 核心功能
 
-> The starter template for Vue is on https://github.com/nuxt-ui-templates/starter-vue.
+- **协议兼容性**：完全支持 OpenAI `chat.completion` 和 Claude `messages` API 格式。
+- **流式传输 (SSE)**：支持 `stream: true`，可实时流式传输文本和工具调用。
+- **多模态支持**：支持渲染对话历史中嵌入的图片（Base64 和 URL）。
+- **结构化工具调用**：自动解析可用工具，并生成直观、递归的 UI，用于填写复杂的 JSON 数组、对象、布尔值和数字，无需手写代码。
+- **Web 管理面板**：基于 Nuxt UI 构建，提供简洁、响应式的界面，支持角色颜色区分和全宽布局。
+- **安全性**：
+  - **登录认证**：通过密码保护管理面板。
+  - **防爆破逻辑**：内置频率限制，支持反向代理（X-Forwarded-For）识别真实 IP。
+  - **动态 API Key**：可为 LLM 端点开启独立的 API Key 校验。
 
-## Quick Start
+## 🚀 快速开始
 
-```bash [Terminal]
-npm create nuxt@latest -- -t ui
+1. **安装依赖**:
+   ```bash
+   npm install
+   ```
+
+2. **配置认证**:
+   在根目录创建 `.env` 文件并设置管理密码：
+   ```env
+   ADMIN_PASSWORD=你的安全密码
+   ```
+   *(如果未设置，面板将处于免密模式，仅建议本地测试使用)。*
+
+3. **启动服务器**:
+   ```bash
+   npm run dev
+   ```
+   面板地址：[http://localhost:3000](http://localhost:3000)
+
+## 🛠️ 配置使用
+
+### 1. 配置您的 LLM 客户端
+将你的 LLM 客户端（如 OpenCode, LangChain, OpenAI SDK）的 Base URL 指向本地服务器。
+
+- **OpenAI 基础地址**: `http://localhost:3000/api/openai/v1`
+- **Claude 基础地址**: `http://localhost:3000/api/claude`
+- **API Key**: 默认无需填写（除非在设置中开启了 API Key 校验）。
+
+*OpenCode 配置示例 (`opencode.json`):*
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "human/human",
+  "provider": {
+    "human": {
+      "options": {
+        "apiKey": "not-required",
+        "baseURL": "http://localhost:3000/api/openai/v1"
+      },
+      "models": {
+        "human/human": {
+          "name": "Human-Brain"
+        }
+      }
+    }
+  }
+}
 ```
 
-## Deploy your own
+### 2. 手动回复流程
+1. 当客户端发送请求时，服务器会“挂起”并等待。
+2. 打开面板 [http://localhost:3000](http://localhost:3000)。
+3. 在侧边栏选择新到达的请求。
+4. 在右侧 **Text Content** 中输入回复。
+5. （可选）使用动态工具按钮添加 **Tool Calls**，并在生成的表单中填写参数。
+6. 点击 **Send to Client**，客户端将实时收到您的回复。
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-name=starter&repository-url=https%3A%2F%2Fgithub.com%2Fnuxt-ui-templates%2Fstarter&demo-image=https%3A%2F%2Fui.nuxt.com%2Fassets%2Ftemplates%2Fnuxt%2Fstarter-dark.png&demo-url=https%3A%2F%2Fstarter-template.nuxt.dev%2F&demo-title=Nuxt%20Starter%20Template&demo-description=A%20minimal%20template%20to%20get%20started%20with%20Nuxt%20UI.)
+## ⚙️ 高级设置
+点击侧边栏底部的 **Settings (⚙️)** 图标，你可以：
+- 开启/关闭 LLM 端点的 API Key 强制校验。
+- 修改预期的 API Key。
+- 设置会持久化保存在 `.data/settings.json` 中。
 
-## Setup
-
-Make sure to install the dependencies:
-
-```bash
-pnpm install
-```
-
-## Development Server
-
-Start the development server on `http://localhost:3000`:
-
-```bash
-pnpm dev
-```
-
-## Production
-
-Build the application for production:
-
-```bash
-pnpm build
-```
-
-Locally preview production build:
-
-```bash
-pnpm preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
-
-## Renovate integration
-
-Install [Renovate GitHub app](https://github.com/apps/renovate/installations/select_target) on your repository and you are good to go.
+## 🏗️ 技术栈
+- [Nuxt 3](https://nuxt.com/)
+- [Nuxt UI v4](https://ui.nuxt.com/)
+- Tailwind CSS
+- TypeScript
