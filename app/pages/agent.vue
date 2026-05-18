@@ -195,41 +195,39 @@ const sendPart = async (id: string) => {
   responses.value[id] = ''
   structuredToolCalls.value[id] = []
 
-  enqueueAction(id, async () => {
-    submitting.value[id] = true
-    try {
-      // Auto-append newline for multi-turn feel
-      if (content && !content.endsWith('\n')) {
-        content += '\n'
-      }
-
-      await $fetch('/api/internal/respond', {
-        method: 'POST',
-        body: {
-          id,
-          response: content,
-          toolCalls: toolCalls.length > 0 ? toolCalls : null,
-          simulateStream: isStreaming
-        }
-      })
-
-      if (!sentHistory.value[id]) sentHistory.value[id] = []
-      sentHistory.value[id].push({
-        role: 'assistant',
-        content: content,
-        tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
-        _is_manual: true
-      })
-
-      toast.add({ title: t('response_sent'), color: 'success' })
-      scrollToBottom()
-    } catch (error) {
-      console.error('Failed to send part:', error)
-      toast.add({ title: t('response_failed'), color: 'error' })
-    } finally {
-      submitting.value[id] = false
+  submitting.value[id] = true
+  try {
+    // Auto-append newline for multi-turn feel
+    if (content && !content.endsWith('\n')) {
+      content += '\n'
     }
-  })
+
+    await $fetch('/api/internal/respond', {
+      method: 'POST',
+      body: {
+        id,
+        response: content,
+        toolCalls: toolCalls.length > 0 ? toolCalls : null,
+        simulateStream: isStreaming
+      }
+    })
+
+    if (!sentHistory.value[id]) sentHistory.value[id] = []
+    sentHistory.value[id].push({
+      role: 'assistant',
+      content: content,
+      tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+      _is_manual: true
+    })
+
+    toast.add({ title: t('response_sent'), color: 'success' })
+    scrollToBottom()
+  } catch (error) {
+    console.error('Failed to send part:', error)
+    toast.add({ title: t('response_failed'), color: 'error' })
+  } finally {
+    submitting.value[id] = false
+  }
 }
 
 const finish = async (id: string) => {
@@ -240,34 +238,31 @@ const finish = async (id: string) => {
   responses.value[id] = ''
   structuredToolCalls.value[id] = []
 
-  enqueueAction(id, async () => {
-    finishing.value[id] = true
-    try {
-      await $fetch('/api/internal/finish', {
-        method: 'POST',
-        body: {
-          id,
-          response: content,
-          toolCalls: toolCalls.length > 0 ? toolCalls : null,
-          simulateStream: isStreaming
-        }
-      })
+  finishing.value[id] = true
+  try {
+    await $fetch('/api/internal/finish', {
+      method: 'POST',
+      body: {
+        id,
+        response: content,
+        toolCalls: toolCalls.length > 0 ? toolCalls : null,
+        simulateStream: isStreaming
+      }
+    })
 
-      delete responses.value[id]
-      delete structuredToolCalls.value[id]
-      delete simulateStream.value[id]
-      delete sentHistory.value[id]
-      delete responseQueue.value[id]
-      await refresh()
-      toast.add({ title: t('response_sent'), color: 'success' })
-      scrollToBottom()
-    } catch (error) {
-      console.error('Failed to finish request:', error)
-      toast.add({ title: t('response_failed'), color: 'error' })
-    } finally {
-      finishing.value[id] = false
-    }
-  })
+    delete responses.value[id]
+    delete structuredToolCalls.value[id]
+    delete simulateStream.value[id]
+    delete sentHistory.value[id]
+    await refresh()
+    toast.add({ title: t('response_sent'), color: 'success' })
+    scrollToBottom()
+  } catch (error) {
+    console.error('Failed to finish request:', error)
+    toast.add({ title: t('response_failed'), color: 'error' })
+  } finally {
+    finishing.value[id] = false
+  }
 }
 
 const getMessages = (payload: any) => {

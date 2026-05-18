@@ -61,6 +61,7 @@ export default defineEventHandler(async (event) => {
       request.onData = async (chunk) => {
         const speed = chunk.simulateStream ? (settings.streamSpeed || 30) : 0
 
+
         // Handle Content
         if (chunk.content) {
           const content = chunk.content

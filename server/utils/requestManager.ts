@@ -22,7 +22,8 @@ export interface PendingRequest {
   payload: any
   timestamp: number
   // Callback to push data to the handler
-  onData: (chunk: RequestChunk) => void
+  onData: (chunk: RequestChunk) => Promise<void>
+  queue: Promise<void>
 }
 
 const pendingRequests = new Map<string, PendingRequest>()
@@ -35,7 +36,8 @@ export const addRequest = (type: 'openai' | 'claude' | 'openai-responses', paylo
       type,
       payload,
       timestamp: Date.now(),
-      onData: () => {} // Will be set by the handler
+      onData: async () => {}, // Will be set by the handler
+      queue: Promise.resolve()
     }
     pendingRequests.set(id, request)
     console.log(`[RequestManager] Added ${type} request: ${id}`)
@@ -55,14 +57,20 @@ export const getPendingRequests = () => {
 export const pushToRequest = (id: string, chunk: Omit<RequestChunk, 'isFinal'>) => {
   const request = pendingRequests.get(id)
   if (!request) throw new Error(`Request ${id} not found`)
-  request.onData({ ...chunk, isFinal: false })
-  console.log(`[RequestManager] Pushed data to request: ${id}`)
+
+  request.queue = request.queue.then(async () => {
+    await request.onData({ ...chunk, isFinal: false })
+  })
+  console.log(`[RequestManager] Queued data for request: ${id}`)
 }
 
 export const finishRequest = (id: string, chunk?: Omit<RequestChunk, 'isFinal'>) => {
   const request = pendingRequests.get(id)
   if (!request) throw new Error(`Request ${id} not found`)
-  request.onData({ ...chunk, isFinal: true })
-  pendingRequests.delete(id)
-  console.log(`[RequestManager] Finished request: ${id}`)
+
+  request.queue = request.queue.then(async () => {
+    await request.onData({ ...chunk, isFinal: true })
+    pendingRequests.delete(id)
+    console.log(`[RequestManager] Finished request: ${id}`)
+  })
 }
