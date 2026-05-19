@@ -71,7 +71,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (!isVerified) {
-    return handleFailure(ip, 'Invalid OTP code')
+    return handleFailure(ip, 'Invalid OTP code or password')
   }
 
   // 3. Success
