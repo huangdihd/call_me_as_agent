@@ -319,8 +319,30 @@ const saveSettings = async () => {
                   <p class="text-xs text-gray-500">{{ t('enable_otp_desc') }}</p>
                 </div>
                 <div class="flex items-center gap-2">
-                  <UButton v-if="!settingsForm.enableOtpAuth" size="sm" color="primary" @click="openOtpSetup">{{ t('otp_setup_title') }}</UButton>
-                  <UButton v-else size="sm" color="error" variant="soft" @click="disableOtp">{{ t('disabled') }}</UButton>
+                  <UBadge
+                    v-if="settingsForm.enableOtpAuth"
+                    color="success"
+                    variant="subtle"
+                  >
+                    {{ t('enabled') }}
+                  </UBadge>
+                  <UButton
+                    v-if="!settingsForm.enableOtpAuth"
+                    size="sm"
+                    color="primary"
+                    @click="openOtpSetup"
+                  >
+                    {{ t('otp_setup_title') }}
+                  </UButton>
+                  <UButton
+                    v-else
+                    size="sm"
+                    color="error"
+                    variant="soft"
+                    @click="disableOtp"
+                  >
+                    {{ t('disable') }}
+                  </UButton>
                 </div>
               </div>
             </div>

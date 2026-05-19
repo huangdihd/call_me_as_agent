@@ -112,7 +112,8 @@ const translations = {
     verify_and_enable: '验证并启用',
     invalid_otp: '验证码无效',
     otp_enabled_success: 'OTP 认证已启用',
-    otp_disabled_success: 'OTP 认证已禁用'
+    otp_disabled_success: 'OTP 认证已禁用',
+    disable: '停用'
   },
   en: {
     // General
@@ -225,7 +226,8 @@ const translations = {
     verify_and_enable: 'Verify and Enable',
     invalid_otp: 'Invalid OTP code',
     otp_enabled_success: 'OTP Auth enabled successfully',
-    otp_disabled_success: 'OTP Auth disabled successfully'
+    otp_disabled_success: 'OTP Auth disabled successfully',
+    disable: 'Disable'
   }
 }
 
