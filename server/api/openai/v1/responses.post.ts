@@ -284,8 +284,9 @@ export default defineEventHandler(async (event) => {
             status: 'completed',
             output: finalOutput,
             output_text: totalText,
-            usage: { input_tokens: promptTokens, output_tokens: completionTokens, total_tokens: promptTokens + completionTokens }
-          })
+            usage: { input_tokens: promptTokens, output_tokens: completionTokens, total_tokens: promptTokens + completionTokens },
+            conversation_id: `conv_${requestId}`
+          } as OpenAIResponsesResponse)
         }
       }
     })

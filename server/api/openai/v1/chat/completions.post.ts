@@ -1,3 +1,24 @@
+export type OpenAICompletionResponse = {
+  id: string
+  object: 'chat.completion'
+  created: number
+  model: string
+  choices: Array<{
+    index: number
+    message: {
+      role: 'assistant'
+      content: string | null
+      tool_calls?: any[]
+    }
+    finish_reason: string
+  }>
+  usage: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const settings = getSettings()
   if (settings.enableApiKeyAuth) {
@@ -165,7 +186,7 @@ export default defineEventHandler(async (event) => {
                 role: 'assistant',
                 content: bufferedContent || null,
                 tool_calls: bufferedTools.length > 0
-                  ? bufferedTools.map((tc, i) => ({
+                  ? bufferedTools.map((tc, _) => ({
                       id: tc.id || `call_${Math.random().toString(36).substring(2, 9)}`,
                       type: 'function',
                       function: {
@@ -179,19 +200,6 @@ export default defineEventHandler(async (event) => {
             }],
             usage: { prompt_tokens: promptTokens, completion_tokens: totalTokens - promptTokens, total_tokens: totalTokens }
           } as OpenAICompletionResponse)
-        }
-      }
-    })
-  }
-})
-                 }
-                    }))
-                  : undefined
-              },
-              finish_reason: bufferedTools.length > 0 ? 'tool_calls' : 'stop'
-            }],
-            usage: { prompt_tokens: promptTokens, completion_tokens: totalTokens - promptTokens, total_tokens: totalTokens }
-          })
         }
       }
     })

@@ -40,6 +40,7 @@ export default defineEventHandler(async (event) => {
 
   const isPasswordRequired = !!(settings.enablePasswordAuth && config.adminPassword)
   const isOtpRequired = settings.enableOtpAuth
+  let isVerified = false
 
   // 1. Password Verification
   if (isPasswordRequired) {
@@ -53,9 +54,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    if (!matches) {
-      return handleFailure(ip, 'Invalid password')
-    }
+    isVerified = isVerified || matches
   }
 
   // 2. OTP Verification
@@ -68,9 +67,11 @@ export default defineEventHandler(async (event) => {
       strategy: 'totp'
     }).valid
 
-    if (!isValid) {
-      return handleFailure(ip, 'Invalid OTP code')
-    }
+    isVerified = isVerified || isValid
+  }
+
+  if (!isVerified) {
+    return handleFailure(ip, 'Invalid OTP code')
   }
 
   // 3. Success

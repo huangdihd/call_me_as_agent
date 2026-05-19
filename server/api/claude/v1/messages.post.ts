@@ -1,3 +1,23 @@
+export type ClaudeMessagesResponse = {
+  id: string
+  type: 'message'
+  role: 'assistant'
+  content: Array<{
+    type: 'text' | 'tool_use'
+    text?: string
+    id?: string
+    name?: string
+    input?: any
+  }>
+  model: string
+  stop_reason: 'end_turn' | 'tool_use' | string | null
+  stop_sequence: string | null
+  usage: {
+    input_tokens: number
+    output_tokens: number
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const settings = getSettings()
   if (settings.enableApiKeyAuth) {
@@ -188,17 +208,6 @@ export default defineEventHandler(async (event) => {
             stop_sequence: null,
             usage: { input_tokens: promptTokens, output_tokens: completionTokens }
           } as ClaudeMessagesResponse)
-        }
-      }
-    })
-  }
-})
-      content: bufferedContent,
-            model: body.model || 'claude-3-5-sonnet-20241022',
-            stop_reason: bufferedContent.some(c => c.type === 'tool_use') ? 'tool_use' : 'end_turn',
-            stop_sequence: null,
-            usage: { input_tokens: promptTokens, output_tokens: completionTokens }
-          })
         }
       }
     })
