@@ -805,20 +805,20 @@ const availableTools = computed(() => {
                         >{{ t('manual_badge') }}</span>
                       </div>
                       <div
-                        v-if="msg.content"
+                        v-if="msg.content.trim()"
                         class="whitespace-pre-wrap break-words"
                       >
                         {{ msg.content }}
                       </div>
                       <div
                         v-if="msg.images.length"
-                        class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2"
+                        class="mt-3 flex flex-col gap-2 w-fit"
                       >
                         <img
                           v-for="(img, i) in msg.images"
                           :key="i"
                           :src="img"
-                          class="rounded-lg border border-white/20 max-h-60 w-full object-cover"
+                          class="rounded-lg border border-white/20 max-h-80 max-w-full object-contain bg-black/5 block"
                         >
                       </div>
                       <div
