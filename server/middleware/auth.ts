@@ -1,8 +1,11 @@
 export default defineEventHandler((event) => {
   const url = getRequestURL(event)
+  
+  // Decode the pathname to prevent URL-encoding bypass (e.g. /%61pi/internal/)
+  const decodedPath = decodeURI(url.pathname)
 
   // Only protect internal API routes
-  if (url.pathname.startsWith('/api/internal/')) {
+  if (decodedPath.startsWith('/api/internal/')) {
     const config = useRuntimeConfig()
     if (config.adminPassword) {
       const token = getCookie(event, 'auth_token')
