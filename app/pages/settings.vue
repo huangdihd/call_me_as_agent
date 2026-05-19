@@ -51,14 +51,13 @@ const verifyAndEnableOtp = async () => {
     await $fetch('/api/auth/login', {
       method: 'POST',
       body: { 
-        password: '', // We are already authenticated, but we need to verify the OTP
+        password: '', // Already authenticated
         otpCode: otpVerificationCode.value,
         _isSetupVerification: true,
         _tempSecret: otpSetupData.value.secret
       }
     })
     
-    // If successful, update settings
     settingsForm.value.enableOtpAuth = true
     settingsForm.value.otpSecret = otpSetupData.value.secret
     isOtpModalOpen.value = false
@@ -78,20 +77,15 @@ const disableOtp = () => {
 }
 
 const logoInput = ref<HTMLInputElement | null>(null)
-
-const triggerLogoUpload = () => {
-  logoInput.value?.click()
-}
+const triggerLogoUpload = () => logoInput.value?.click()
 
 const onLogoUpload = (e: Event) => {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
-
   if (file.size > 2 * 1024 * 1024) {
     toast.add({ title: 'File too large (max 2MB)', color: 'error' })
     return
   }
-
   const reader = new FileReader()
   reader.onload = (event) => {
     settingsForm.value.siteLogo = event.target?.result as string
@@ -125,7 +119,6 @@ const colorMap: Record<string, string> = {
   pink: '#ec4899',
   rose: '#f43f5e'
 }
-
 const colors = Object.keys(colorMap)
 
 const loadSettings = async () => {
@@ -151,11 +144,9 @@ const saveSettings = async () => {
     })
     toast.add({ title: t('settings_saved'), color: 'success' })
 
-    // Update theme reactively
     if (import.meta.client) {
       const appConfig = useAppConfig()
       appConfig.ui.colors.primary = settingsForm.value.primaryColor
-      // Refresh to apply language change fully if needed
       setTimeout(() => {
         window.location.reload()
       }, 500)
@@ -169,7 +160,7 @@ const saveSettings = async () => {
 </script>
 
 <template>
-  <div class="min-h-screen w-full bg-gray-50 dark:bg-gray-950 flex flex-col pb-20 text-gray-900 dark:text-gray-100">
+  <div class="min-h-screen w-full bg-gray-50 dark:bg-gray-950 flex flex-col pb-20 text-gray-900 dark:text-gray-100 overflow-x-hidden relative">
     <!-- Top Navigation -->
     <header class="p-4 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between sticky top-0 z-10">
       <div class="flex items-center gap-4">
@@ -179,7 +170,7 @@ const saveSettings = async () => {
           color="neutral"
           to="/"
         />
-        <h1 class="font-bold text-lg text-gray-900 dark:text-white">
+        <h1 class="font-bold text-lg">
           {{ t('server_settings') }}
         </h1>
       </div>
@@ -193,7 +184,7 @@ const saveSettings = async () => {
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 p-6 flex justify-center">
+    <main class="flex-1 p-6 flex justify-center w-full">
       <div
         v-if="!isAuthenticated"
         class="text-center mt-20"
@@ -267,8 +258,6 @@ const saveSettings = async () => {
                   v-model="settingsForm.streamSpeed"
                   type="number"
                   class="w-full"
-                  min="0"
-                  max="1000"
                 />
               </UFormField>
               <UFormField
@@ -279,8 +268,6 @@ const saveSettings = async () => {
                   v-model="settingsForm.keepAliveInterval"
                   type="number"
                   class="w-full"
-                  min="0"
-                  max="300"
                 />
               </UFormField>
             </div>
@@ -427,8 +414,6 @@ const saveSettings = async () => {
                   <UInput
                     v-model="settingsForm.toastTimeout"
                     type="number"
-                    min="1000"
-                    max="10000"
                   />
                 </UFormField>
               </div>
@@ -544,11 +529,26 @@ const saveSettings = async () => {
             </div>
           </div>
         </UCard>
+
+        <!-- Footer Links -->
+        <div class="flex items-center justify-center gap-4 pt-4 text-gray-900 dark:text-white pb-10">
+          <UButton
+            icon="i-simple-icons-github"
+            :label="t('github_repo')"
+            variant="link"
+            color="neutral"
+            size="xs"
+            to="https://github.com/huangdihd/call_me_as_agent"
+            target="_blank"
+          />
+          <span class="text-xs text-gray-400">|</span>
+          <span class="text-xs text-gray-400 text-center">{{ t('released_under') }}</span>
+        </div>
       </div>
     </main>
 
-    <!-- OTP Setup Modal (Moved to root level) -->
-    <UModal v-model="isOtpModalOpen">
+    <!-- OTP Setup Modal -->
+    <UModal v-model:open="isOtpModalOpen">
       <UCard>
         <template #header>
           <div class="flex items-center justify-between">
@@ -570,18 +570,19 @@ const saveSettings = async () => {
             {{ t('otp_setup_step1') }}
           </p>
           
-          <div class="space-y-4">
-            <p class="text-sm text-gray-600 dark:text-gray-400">
+          <div class="space-y-4 text-center">
+            <p class="text-sm text-gray-600 dark:text-gray-400 text-left">
               {{ t('otp_setup_step2') }}
             </p>
-            <div class="flex justify-center bg-white p-4 rounded-xl">
+            <div class="flex justify-center bg-white p-4 rounded-xl inline-block mx-auto border border-gray-100">
               <img
                 v-if="otpSetupData?.qrCodeDataUrl"
                 :src="otpSetupData.qrCodeDataUrl"
                 class="w-48 h-48"
+                alt="OTP QR Code"
               >
             </div>
-            <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-100 dark:border-gray-800">
+            <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-100 dark:border-gray-800 text-left">
               <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">{{ t('otp_secret_label') }}</label>
               <code class="text-xs font-mono break-all text-primary-600 dark:text-primary-400">{{ otpSetupData?.secret }}</code>
             </div>
@@ -594,7 +595,7 @@ const saveSettings = async () => {
             <UInput
               v-model="otpVerificationCode"
               placeholder="000000"
-              class="w-full text-center text-lg tracking-[1em]"
+              class="w-full text-center text-lg tracking-[0.5em]"
               maxlength="6"
               @keyup.enter="verifyAndEnableOtp"
             />
