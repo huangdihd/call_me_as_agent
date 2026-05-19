@@ -20,6 +20,9 @@ const translations = {
     response_failed: '回复发送失败',
     copied: '已复制到剪贴板',
     upload: '上传图片',
+    sending: '发送中...',
+    endpoints: '接口端点',
+    manual_badge: '手动',
 
     // Index Page
     pending_requests: '待处理请求',
@@ -92,7 +95,9 @@ const translations = {
     tokens_label: 'Token 标签名称',
     tokens_label_desc: '自定义显示 Token 统计时的前缀文字。',
     toast_timeout: '提示框停留时间 (ms)',
-    toast_timeout_desc: '操作成功/失败时的提示框在屏幕上的停留时间。'
+    toast_timeout_desc: '操作成功/失败时的提示框在屏幕上的停留时间。',
+    max_logo_size_hint: '最大 2MB。建议使用正方形图片。',
+    github_repo: 'GitHub 仓库'
   },
   en: {
     // General
@@ -113,6 +118,9 @@ const translations = {
     response_failed: 'Failed to submit response',
     copied: 'Copied to clipboard',
     upload: 'Upload Image',
+    sending: 'Sending...',
+    endpoints: 'Endpoints',
+    manual_badge: 'MANUAL',
 
     // Index Page
     pending_requests: 'Pending Requests',
@@ -185,7 +193,9 @@ const translations = {
     tokens_label: 'Tokens Label',
     tokens_label_desc: 'Custom text prefix for token statistics.',
     toast_timeout: 'Toast Timeout (ms)',
-    toast_timeout_desc: 'Duration for success/error notifications to remain on screen.'
+    toast_timeout_desc: 'Duration for success/error notifications to remain on screen.',
+    max_logo_size_hint: 'Max size: 2MB. Recommended square aspect ratio.',
+    github_repo: 'GitHub Repository'
   }
 }
 

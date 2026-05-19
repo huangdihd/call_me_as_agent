@@ -290,7 +290,7 @@ const saveSettings = async () => {
                     />
                   </div>
                   <p class="text-[10px] text-gray-400">
-                    Max size: 2MB. Recommended square aspect ratio.
+                    {{ t('max_logo_size_hint') }}
                   </p>
                 </div>
                 <input
@@ -361,8 +361,8 @@ const saveSettings = async () => {
                   />
                 </UFormField>
                 <UFormField
-                  label="Tokens Label"
-                  description="Custom label for tokens display"
+                  :label="t('tokens_label')"
+                  :description="t('tokens_label_desc')"
                 >
                   <UInput
                     v-model="settingsForm.tokensLabel"
@@ -370,8 +370,8 @@ const saveSettings = async () => {
                   />
                 </UFormField>
                 <UFormField
-                  label="Toast Timeout (ms)"
-                  description="Duration for toast notifications"
+                  :label="t('toast_timeout')"
+                  :description="t('toast_timeout_desc')"
                 >
                   <UInput
                     v-model="settingsForm.toastTimeout"
@@ -395,8 +395,8 @@ const saveSettings = async () => {
                   <USwitch v-model="settingsForm.showApiKeyPublic" />
                 </UFormField>
                 <UFormField
-                  label="Show Tokens"
-                  description="Display token usage on the public dashboard"
+                  :label="t('show_tokens_public')"
+                  :description="t('show_tokens_public_desc')"
                 >
                   <USwitch v-model="settingsForm.showTokensPublic" />
                 </UFormField>
@@ -446,7 +446,7 @@ const saveSettings = async () => {
         <div class="flex items-center justify-center gap-4 pt-4 text-gray-900 dark:text-white">
           <UButton
             icon="i-simple-icons-github"
-            label="GitHub Repository"
+            :label="t('github_repo')"
             variant="link"
             color="neutral"
             size="xs"

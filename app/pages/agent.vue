@@ -584,7 +584,7 @@ const availableTools = computed(() => {
                     <UIcon
                       name="i-lucide-loader-2"
                       class="animate-spin"
-                    /> Sending...
+                    /> {{ t('sending') }}
                   </span>
                   <span class="text-[10px] text-gray-400">{{ formatTimestamp(req.timestamp) }}</span>
                 </div>
@@ -607,7 +607,7 @@ const availableTools = computed(() => {
 
         <div class="p-4 border-t border-gray-200 dark:border-gray-800 space-y-2 bg-white/50 dark:bg-gray-900/50">
           <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-            Endpoints
+            {{ t('endpoints') }}
           </div>
           <div class="flex flex-col gap-1">
             <UButton
@@ -760,7 +760,7 @@ const availableTools = computed(() => {
                         <span
                           v-if="msg._is_manual"
                           class="ml-1 text-[8px] bg-white/20 px-1 rounded font-black tracking-tighter"
-                        >MANUAL</span>
+                        >{{ t('manual_badge') }}</span>
                       </div>
                       <div
                         v-if="msg.content"
