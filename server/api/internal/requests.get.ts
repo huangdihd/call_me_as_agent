@@ -1,11 +1,11 @@
 export type RequestsGetResponse = Array<{
   id: string
   type: 'openai' | 'claude' | 'openai-responses'
-  payload: any
+  payload: Record<string, unknown>
   timestamp: number
   draft?: {
     response: string
-    toolCalls: any[]
+    toolCalls: Record<string, unknown>[]
     simulateStream: boolean
   }
 }>

@@ -3,7 +3,7 @@ export default defineNuxtPlugin(() => {
 
   if (import.meta.client) {
     // Initial load
-    $fetch('/api/settings').then((settings: any) => {
+    $fetch('/api/settings').then((settings: Record<string, string>) => {
       if (settings?.primaryColor) {
         appConfig.ui.colors.primary = settings.primaryColor
       }

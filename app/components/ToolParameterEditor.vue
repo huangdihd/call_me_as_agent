@@ -2,8 +2,8 @@
 import { computed } from 'vue'
 
 const props = defineProps<{
-  modelValue: any
-  schema?: any
+  modelValue: unknown
+  schema?: Record<string, unknown> | null
   name?: string
 }>()
 
@@ -12,28 +12,31 @@ const emit = defineEmits(['update:modelValue'])
 const isArray = computed(() => Array.isArray(props.modelValue))
 const isObject = computed(() => typeof props.modelValue === 'object' && props.modelValue !== null && !isArray.value)
 
-const updateValue = (val: any) => {
+const updateValue = (val: unknown) => {
   emit('update:modelValue', val)
 }
 
-const updateArrayItem = (index: number, val: any) => {
+const updateArrayItem = (index: number, val: unknown) => {
+  if (!Array.isArray(props.modelValue)) return
   const newArray = [...props.modelValue]
   newArray[index] = val
   updateValue(newArray)
 }
 
 const addArrayItem = () => {
-  const newArray = [...(props.modelValue || [])]
-  const itemSchema = props.schema?.items || {}
+  const newArray = [...(Array.isArray(props.modelValue) ? props.modelValue : [])]
+  const itemSchema = (props.schema?.items as Record<string, unknown>) || {}
 
-  let newItem: any = ''
+  let newItem: unknown = ''
   if (itemSchema.type === 'object') {
-    newItem = {}
+    const obj: Record<string, unknown> = {}
     if (itemSchema.properties) {
-      Object.keys(itemSchema.properties).forEach((k) => {
-        newItem[k] = itemSchema.properties[k].type === 'array' ? [] : (itemSchema.properties[k].type === 'object' ? {} : '')
+      const props = itemSchema.properties as Record<string, Record<string, unknown>>
+      Object.keys(props).forEach((k) => {
+        obj[k] = props[k].type === 'array' ? [] : (props[k].type === 'object' ? {} : '')
       })
     }
+    newItem = obj
   } else if (itemSchema.type === 'array') {
     newItem = []
   }
@@ -47,25 +50,29 @@ const addArrayItem = () => {
 }
 
 const removeArrayItem = (index: number) => {
+  if (!Array.isArray(props.modelValue)) return
   const newArray = [...props.modelValue]
   newArray.splice(index, 1)
   updateValue(newArray)
 }
 
-const updateObjectKey = (key: string, val: any) => {
+const updateObjectKey = (key: string, val: unknown) => {
+  if (typeof props.modelValue !== 'object' || props.modelValue === null) return
   const newObj = { ...props.modelValue, [key]: val }
   updateValue(newObj)
 }
 
 const addObjectKey = () => {
+  if (typeof props.modelValue !== 'object' || props.modelValue === null) return
   const key = window.prompt('Enter new property name:')
-  if (key && !props.modelValue[key]) {
+  if (key && !(props.modelValue as Record<string, unknown>)[key]) {
     updateObjectKey(key, '')
   }
 }
 
 const removeObjectKey = (key: string) => {
-  const newObj = { ...props.modelValue }
+  if (typeof props.modelValue !== 'object' || props.modelValue === null) return
+  const newObj = { ...props.modelValue } as Record<string, unknown>
   delete newObj[key]
   updateValue(newObj)
 }

@@ -7,7 +7,7 @@ export type ClaudeMessagesResponse = {
     text?: string
     id?: string
     name?: string
-    input?: any
+    input?: Record<string, unknown>
   }>
   model: string
   stop_reason: 'end_turn' | 'tool_use' | string | null
@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
   // Token counting
   let promptTokens = 0
   let completionTokens = 0
-  const estimateTokens = (obj: any) => Math.ceil(JSON.stringify(obj).length / 3)
+  const estimateTokens = (obj: unknown) => Math.ceil(JSON.stringify(obj).length / 3)
   promptTokens = estimateTokens(body.messages || body.system)
 
   const request = await addRequest('claude', body)
@@ -52,7 +52,7 @@ export default defineEventHandler(async (event) => {
     })
     event.node.res.flushHeaders()
 
-    const sendSSE = (eventName: string, data: any) => {
+    const sendSSE = (eventName: string, data: unknown) => {
       if (!event.node.res.writableEnded) {
         event.node.res.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`)
       }
@@ -119,8 +119,8 @@ export default defineEventHandler(async (event) => {
         if (chunk.toolCalls && chunk.toolCalls.length > 0) {
           chunk.toolCalls.forEach((tc) => {
             const tcId = tc.id || `call_${Math.random().toString(36).substring(2, 9)}`
-            const toolName = tc.function?.name || (tc as any).name
-            const toolInput = typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : ((tc as any).input || {})
+            const toolName = tc.function?.name || tc.name
+            const toolInput = typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : (tc.input || {})
             const fullJson = JSON.stringify(toolInput)
 
             completionTokens += Math.ceil(fullJson.length / 3)
@@ -173,7 +173,7 @@ export default defineEventHandler(async (event) => {
   } else {
     // Non-streaming: Wait for final
     return new Promise((resolve) => {
-      const bufferedContent: any[] = []
+      const bufferedContent: Record<string, unknown>[] = []
 
       request.onData = async (chunk) => {
         if (chunk.content) {
@@ -182,12 +182,12 @@ export default defineEventHandler(async (event) => {
         }
         if (chunk.toolCalls) {
           chunk.toolCalls.forEach((tc) => {
-            const toolInput = typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : ((tc as any).input || {})
+            const toolInput = typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : (tc.input || {})
             completionTokens += Math.ceil(JSON.stringify(toolInput).length / 3)
             bufferedContent.push({
               type: 'tool_use',
               id: tc.id || `call_${Math.random().toString(36).substring(2, 9)}`,
-              name: tc.function?.name || (tc as any).name,
+              name: tc.function?.name || tc.name,
               input: toolInput
             })
           })

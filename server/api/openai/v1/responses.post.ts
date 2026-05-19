@@ -4,7 +4,7 @@ export type OpenAIResponsesResponse = {
   created_at: number
   status: string
   model: string
-  output: any[]
+  output: Record<string, unknown>[]
   usage: {
     input_tokens: number
     output_tokens: number
@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
   // Token counting
   let promptTokens = 0
   let completionTokens = 0
-  const estimateTokens = (obj: any) => Math.ceil(JSON.stringify(obj).length / 3)
+  const estimateTokens = (obj: unknown) => Math.ceil(JSON.stringify(obj).length / 3)
   promptTokens = estimateTokens(body.input || body.instructions)
 
   const request = await addRequest('openai-responses', body)
@@ -51,7 +51,7 @@ export default defineEventHandler(async (event) => {
     event.node.res.flushHeaders()
 
     let sequence = 0
-    const emit = (eventName: string, data: any) => {
+    const emit = (eventName: string, data: Record<string, unknown>) => {
       if (!event.node.res.writableEnded) {
         const payload = {
           type: eventName,
@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    const buildBaseResponse = (status: string, output: any[] = [], usage: any = null, assistantText: string = '') => ({
+    const buildBaseResponse = (status: string, output: Record<string, unknown>[] = [], usage: Record<string, unknown> | null = null, assistantText: string = '') => ({
       id: `resp_${requestId}`,
       object: 'response',
       created_at: now,
@@ -87,7 +87,7 @@ export default defineEventHandler(async (event) => {
 
     let outputIndex = 0
     let totalAssistantText = ''
-    const finalOutputItems: any[] = []
+    const finalOutputItems: Record<string, unknown>[] = []
 
     return new Promise<void>((resolve) => {
       request.onData = async (chunk) => {
@@ -170,8 +170,8 @@ export default defineEventHandler(async (event) => {
           chunk.toolCalls.forEach((tc) => {
             const tcItemId = `item_${Math.random().toString(36).substring(2, 9)}`
             const callId = tc.id || `call_${Math.random().toString(36).substring(2, 9)}`
-            const toolName = tc.function?.name || (tc as any).name
-            const formattedArgs = typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || (tc as any).input || {})
+            const toolName = tc.function?.name || tc.name
+            const formattedArgs = typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || tc.input || {})
 
             completionTokens += Math.ceil(formattedArgs.length / 3)
 
@@ -253,7 +253,7 @@ export default defineEventHandler(async (event) => {
   } else {
     // Non-streaming
     return new Promise((resolve) => {
-      const finalOutput: any[] = []
+      const finalOutput: Record<string, unknown>[] = []
       let totalText = ''
       request.onData = async (chunk) => {
         if (chunk.content) {
@@ -263,13 +263,13 @@ export default defineEventHandler(async (event) => {
         }
         if (chunk.toolCalls) {
           chunk.toolCalls.forEach((tc) => {
-            const formattedArgs = typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || (tc as any).input || {})
+            const formattedArgs = typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || tc.input || {})
             completionTokens += Math.ceil(formattedArgs.length / 3)
             finalOutput.push({
               id: `item_${Math.random().toString(36).substring(2, 7)}`,
               type: 'function_call',
               status: 'completed',
-              name: tc.function?.name || (tc as any).name,
+              name: tc.function?.name || tc.name,
               arguments: formattedArgs,
               call_id: tc.id || `call_${Math.random().toString(36).substring(2, 9)}`
             })

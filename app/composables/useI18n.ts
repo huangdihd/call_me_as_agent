@@ -232,12 +232,12 @@ const translations = {
 }
 
 export const useI18n = () => {
-  const { data: settings } = useFetch<any>('/api/settings')
+  const { data: settings } = useFetch<Record<string, string | number | boolean>>('/api/settings')
 
   const t = (key: keyof typeof translations.en) => {
     const lang = settings.value?.language || 'zh'
     const bundle = translations[lang as 'zh' | 'en'] || translations.en
-    return (bundle as any)[key] || key
+    return (bundle as Record<string, string>)[key] || key
   }
 
   return { t, lang: computed(() => settings.value?.language || 'zh') }

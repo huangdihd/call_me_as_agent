@@ -1,7 +1,7 @@
 <script setup lang="ts">
-const { data: requests } = useFetch<any[]>('/api/internal/requests')
-const { data: settings } = useFetch<any>('/api/settings')
-const { data: authStatus } = useFetch<any>('/api/auth/check')
+const { data: requests } = useFetch<Record<string, unknown>[]>('/api/internal/requests')
+const { data: settings } = useFetch<Record<string, unknown>>('/api/settings')
+const { data: authStatus } = useFetch<Record<string, unknown>>('/api/auth/check')
 const { t } = useI18n()
 
 const pendingCount = computed(() => requests.value?.length || 0)

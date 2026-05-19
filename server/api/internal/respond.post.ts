@@ -14,10 +14,10 @@ export default defineEventHandler(async (event) => {
   try {
     await pushToRequest(id, { content: response || '', toolCalls, simulateStream, _manualId })
     return { success: true } as RespondResponse
-  } catch (error: any) {
+  } catch (error) {
     throw createError({
       statusCode: 404,
-      statusMessage: error.message
+      statusMessage: error instanceof Error ? error.message : String(error)
     })
   }
 })

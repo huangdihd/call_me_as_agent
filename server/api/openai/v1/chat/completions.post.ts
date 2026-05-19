@@ -8,7 +8,11 @@ export type OpenAICompletionResponse = {
     message: {
       role: 'assistant'
       content: string | null
-      tool_calls?: any[]
+      tool_calls?: Array<{
+        id: string
+        type: 'function'
+        function: { name: string, arguments: string }
+      }>
     }
     finish_reason: string
   }>
@@ -42,7 +46,7 @@ export default defineEventHandler(async (event) => {
   let promptTokens = 0
   let completionTokens = 0
 
-  const estimateTokens = (obj: any) => Math.ceil(JSON.stringify(obj).length / 3)
+  const estimateTokens = (obj: unknown) => Math.ceil(JSON.stringify(obj).length / 3)
   promptTokens = estimateTokens(body.messages)
 
   const request = await addRequest('openai', body)
@@ -56,7 +60,7 @@ export default defineEventHandler(async (event) => {
     })
     event.node.res.flushHeaders()
 
-    const sendChunk = (chunk: any) => {
+    const sendChunk = (chunk: Record<string, unknown>) => {
       if (!event.node.res.writableEnded) {
         event.node.res.write(`data: ${JSON.stringify(chunk)}\n\n`)
       }
@@ -116,10 +120,10 @@ export default defineEventHandler(async (event) => {
             id: tc.id || `call_${Math.random().toString(36).substring(2, 9)}`,
             type: 'function',
             function: {
-              name: tc.function?.name || (tc as any).name,
+              name: tc.function?.name || tc.name || '',
               arguments: typeof tc.function?.arguments === 'string'
                 ? tc.function.arguments
-                : JSON.stringify(tc.function?.arguments || (tc as any).input || {})
+                : JSON.stringify(tc.function?.arguments || tc.input || {})
             }
           }))
           completionTokens += Math.ceil(JSON.stringify(tool_calls).length / 3)
@@ -135,7 +139,7 @@ export default defineEventHandler(async (event) => {
 
         if (chunk.isFinal) {
           clearInterval(keepAliveTimer)
-          const lastChunk: any = {
+          const lastChunk: Record<string, unknown> = {
             id: `chatcmpl-${requestId}`,
             object: 'chat.completion.chunk',
             created: now,
@@ -167,7 +171,7 @@ export default defineEventHandler(async (event) => {
     // Non-streaming: Wait for final chunk
     return new Promise((resolve) => {
       let bufferedContent = ''
-      const bufferedTools: any[] = []
+      const bufferedTools: Record<string, unknown>[] = []
 
       request.onData = async (chunk) => {
         if (chunk.content) bufferedContent += chunk.content
@@ -190,8 +194,8 @@ export default defineEventHandler(async (event) => {
                       id: tc.id || `call_${Math.random().toString(36).substring(2, 9)}`,
                       type: 'function',
                       function: {
-                        name: tc.function?.name || (tc as any).name,
-                        arguments: typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || (tc as any).input || {})
+                        name: tc.function?.name || tc.name || '',
+                        arguments: typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || tc.input || {})
                       }
                     }))
                   : undefined

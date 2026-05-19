@@ -2,13 +2,18 @@
 interface PendingRequest {
   id: string
   type: 'openai' | 'claude' | 'openai-responses'
-  payload: any
+  payload: Record<string, unknown>
   timestamp: number
+  draft?: {
+    response: string
+    toolCalls: Record<string, unknown>[]
+    simulateStream: boolean
+  }
 }
 
 // 1. State declarations first
 const { data: requests, refresh } = useFetch<PendingRequest[]>('/api/internal/requests')
-const { data: settings } = useFetch<any>('/api/settings')
+const { data: settings } = useFetch<Record<string, unknown>>('/api/settings')
 const activeRequestId = ref<string | null>(null)
 const isAuthenticated = ref(true)
 const isOtpEnabled = ref(false)
@@ -18,9 +23,9 @@ const loginOtpCode = ref('')
 const isLoggingIn = ref(false)
 const isSidebarOpen = ref(false) // NEW: Mobile sidebar state
 const responses = ref<Record<string, string>>({})
-const structuredToolCalls = ref<Record<string, any[]>>({})
+const structuredToolCalls = ref<Record<string, Record<string, unknown>[]>>({})
 const simulateStream = ref<Record<string, boolean>>({})
-const sentHistory = ref<Record<string, any[]>>({})
+const sentHistory = ref<Record<string, Record<string, unknown>[]>>({})
 const submitting = ref<Record<string, boolean>>({})
 const finishing = ref<Record<string, boolean>>({})
 const { t } = useI18n()
@@ -46,36 +51,36 @@ const syncDraft = async (id: string) => {
 }
 
 // Watch for changes and sync (debounced)
-let draftTimers: Record<string, any> = {}
+const draftTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 const queueDraftSync = (id: string) => {
   if (draftTimers[id]) clearTimeout(draftTimers[id])
   draftTimers[id] = setTimeout(() => syncDraft(id), 1000)
 }
 
 watch(responses, (newVal, oldVal) => {
-  Object.keys(newVal).forEach(id => {
+  Object.keys(newVal).forEach((id) => {
     if (newVal[id] !== oldVal[id]) queueDraftSync(id)
   })
 }, { deep: true })
 
 watch(structuredToolCalls, (newVal, oldVal) => {
-  Object.keys(newVal).forEach(id => {
+  Object.keys(newVal).forEach((id) => {
     if (JSON.stringify(newVal[id]) !== JSON.stringify(oldVal[id])) queueDraftSync(id)
   })
 }, { deep: true })
 
 watch(simulateStream, (newVal, oldVal) => {
-  Object.keys(newVal).forEach(id => {
+  Object.keys(newVal).forEach((id) => {
     if (newVal[id] !== oldVal[id]) queueDraftSync(id)
   })
 }, { deep: true })
 
 // 2. Auth logic
 const checkAuth = async () => {
-  const res: any = await $fetch('/api/auth/check')
-  isAuthenticated.value = res.authenticated
-  isOtpEnabled.value = res.otpEnabled
-  isPasswordRequired.value = res.passwordRequired
+  const res = await $fetch<Record<string, unknown>>('/api/auth/check')
+  isAuthenticated.value = res.authenticated as boolean
+  isOtpEnabled.value = res.otpEnabled as boolean
+  isPasswordRequired.value = res.passwordRequired as boolean
 }
 
 const login = async () => {
@@ -83,15 +88,16 @@ const login = async () => {
   try {
     await $fetch('/api/auth/login', {
       method: 'POST',
-      body: { 
+      body: {
         password: loginPassword.value,
         otpCode: loginOtpCode.value
       }
     })
     isAuthenticated.value = true
     await refresh()
-  } catch (e: any) {
-    toast.add({ title: e.data?.statusMessage || t('invalid_password'), color: 'error' })
+  } catch (e: unknown) {
+    const errorData = (e as { data?: { statusMessage?: string } })?.data
+    toast.add({ title: errorData?.statusMessage || t('invalid_password'), color: 'error' })
   } finally {
     isLoggingIn.value = false
   }
@@ -110,7 +116,7 @@ const activeRequest = computed(() => {
 
 watch(requests, (newRequests) => {
   if (newRequests?.length) {
-    newRequests.forEach((r: any) => {
+    newRequests.forEach((r) => {
       if (simulateStream.value[r.id] === undefined) {
         simulateStream.value[r.id] = r.draft?.simulateStream !== undefined ? r.draft.simulateStream : true
       }
@@ -131,7 +137,7 @@ watch(requests, (newRequests) => {
   }
 }, { immediate: true })
 
-const pollInterval = ref<any>(null)
+const pollInterval = ref<ReturnType<typeof setInterval> | null>(null)
 const chatContainer = ref<HTMLElement | null>(null)
 
 const scrollToBottom = async () => {
@@ -172,7 +178,7 @@ const copyToClipboard = (text: string) => {
   toast.add({ title: t('copied'), color: 'success' })
 }
 
-const addToolCall = (requestId: string, tool?: any) => {
+const addToolCall = (requestId: string, tool?: Record<string, unknown>) => {
   if (!structuredToolCalls.value[requestId]) {
     structuredToolCalls.value[requestId] = []
   }
@@ -181,13 +187,13 @@ const addToolCall = (requestId: string, tool?: any) => {
     simulateStream.value[requestId] = true
   }
 
-  const toolFn = tool?.function || tool
-  const parameters = toolFn?.parameters?.properties || toolFn?.input_schema?.properties || {}
-  const args: Record<string, any> = {}
+  const toolFn = (tool?.function || tool) as Record<string, unknown> | undefined
+  const parameters = (toolFn?.parameters as Record<string, unknown>)?.properties as Record<string, any> || (toolFn?.input_schema as Record<string, unknown>)?.properties as Record<string, any> || {}
+  const args: Record<string, unknown> = {}
 
   Object.keys(parameters).forEach((key) => {
     const prop = parameters[key]
-    const toolName = toolFn?.name || ''
+    const toolName = (toolFn?.name as string) || ''
     if (key === 'questions' && toolName === 'ask_user') {
       args[key] = [{
         question: 'Your question here?',
@@ -205,8 +211,8 @@ const addToolCall = (requestId: string, tool?: any) => {
 
   structuredToolCalls.value[requestId].push({
     id: 'call_' + Math.random().toString(36).substring(2, 9),
-    name: toolFn?.name || 'custom_tool',
-    description: toolFn?.description || '',
+    name: (toolFn?.name as string) || 'custom_tool',
+    description: (toolFn?.description as string) || '',
     arguments: args,
     parameters: parameters
   })
@@ -216,18 +222,18 @@ const removeToolCall = (requestId: string, index: number) => {
   structuredToolCalls.value[requestId]?.splice(index, 1)
 }
 
-const promptNewParameter = (tc: any) => {
+const promptNewParameter = (tc: Record<string, unknown>) => {
   const k = window.prompt(t('new_param_name'))
   if (k) {
-    tc.arguments[k] = ''
+    (tc.arguments as Record<string, unknown>)[k] = ''
   }
 }
 
 const parseToolCalls = (id: string) => {
   return (structuredToolCalls.value[id] || []).map((tc) => {
-    const parsedArgs: Record<string, any> = {}
+    const parsedArgs: Record<string, unknown> = {}
     for (const [key, val] of Object.entries(tc.arguments)) {
-      const prop = tc.parameters?.[key]
+      const prop = (tc.parameters as Record<string, any>)?.[key]
       if (typeof val === 'string') {
         if (prop?.type === 'number' || prop?.type === 'integer') {
           parsedArgs[key] = val !== '' ? Number(val) : undefined
@@ -241,7 +247,7 @@ const parseToolCalls = (id: string) => {
       }
       if (parsedArgs[key] === undefined) delete parsedArgs[key]
     }
-    return { id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(parsedArgs) } }
+    return { id: tc.id as string, type: 'function', function: { name: tc.name as string, arguments: JSON.stringify(parsedArgs) } }
   })
 }
 
@@ -330,10 +336,10 @@ const finish = async (id: string) => {
   }
 }
 
-const getMessages = (payload: any, reqId: string) => {
-  let messages: any[] = []
+const getMessages = (payload: Record<string, any>, reqId: string) => {
+  let messages: Record<string, any>[] = []
 
-  const extractText = (content: any): string => {
+  const extractText = (content: unknown): string => {
     if (typeof content === 'string') return content
     if (Array.isArray(content)) {
       return content.map((c) => {
@@ -344,9 +350,10 @@ const getMessages = (payload: any, reqId: string) => {
         return c.text || c.output || c.arguments || JSON.stringify(c)
       }).join('\n')
     }
-    if (content?.type === 'text') return content.text
-    if (content?.type === 'tool_result') return extractText(content.content)
-    return content?.text || content?.output || content?.arguments || JSON.stringify(content)
+    const cObj = content as Record<string, any>
+    if (cObj?.type === 'text') return cObj.text
+    if (cObj?.type === 'tool_result') return extractText(cObj.content)
+    return cObj?.text || cObj?.output || cObj?.arguments || JSON.stringify(cObj)
   }
 
   if (payload.messages) {
@@ -365,7 +372,7 @@ const getMessages = (payload: any, reqId: string) => {
     if (typeof payload.input === 'string') {
       messages.push({ role: 'user', content: payload.input })
     } else if (Array.isArray(payload.input)) {
-      payload.input.forEach((item: any) => {
+      payload.input.forEach((item: Record<string, any>) => {
         let role = item.role
         if (!role) {
           if (item.type === 'message') role = 'user'
@@ -390,15 +397,15 @@ const getMessages = (payload: any, reqId: string) => {
 
   return messages.map((m) => {
     const images: string[] = []
-    const toolCalls: any[] = []
-    const toolResults: any[] = []
+    const toolCalls: Record<string, any>[] = []
+    const toolResults: Record<string, any>[] = []
     let textContent = ''
     let role = m.role
 
     if (typeof m.content === 'string') {
       textContent = m.content
     } else if (Array.isArray(m.content)) {
-      m.content.forEach((c: any) => {
+      m.content.forEach((c: Record<string, any>) => {
         if (c.type === 'text') {
           textContent += (textContent ? '\n' : '') + c.text
         } else if (c.type === 'image_url') {
@@ -425,7 +432,7 @@ const getMessages = (payload: any, reqId: string) => {
       })
     }
 
-    if (m.tool_calls) m.tool_calls.forEach((tc: any) => toolCalls.push(tc))
+    if (m.tool_calls) m.tool_calls.forEach((tc: Record<string, any>) => toolCalls.push(tc))
 
     return {
       role,
@@ -812,9 +819,9 @@ const availableTools = computed(() => {
                               name="i-lucide-play"
                               size="10"
                             />
-                            TOOL: {{ tc.function?.name || (tc as any).name }}
+                            TOOL: {{ tc.function?.name || tc.name }}
                           </div>
-                          <pre class="text-[10px] font-mono whitespace-pre-wrap break-all">{{ tc.function?.arguments || JSON.stringify((tc as any).input || {}) }}</pre>
+                          <pre class="text-[10px] font-mono whitespace-pre-wrap break-all">{{ tc.function?.arguments || JSON.stringify(tc.input || {}) }}</pre>
                         </div>
                       </div>
                       <div

@@ -6,7 +6,7 @@ export interface ToolCall {
     arguments: string
   }
   name?: string
-  input?: any
+  input?: Record<string, unknown>
 }
 
 export interface RequestChunk {
@@ -17,14 +17,27 @@ export interface RequestChunk {
   _manualId?: string
 }
 
+export interface BaseMessage {
+  role: string
+  content?: string | Array<Record<string, unknown>> | null
+  tool_calls?: ToolCall[]
+  _is_manual?: boolean
+  _manualId?: string
+}
+
+export interface ApiPayload {
+  messages?: BaseMessage[]
+  [key: string]: unknown
+}
+
 export interface PendingRequest {
   id: string
   type: 'openai' | 'claude' | 'openai-responses'
-  payload: any
+  payload: ApiPayload
   timestamp: number
   draft?: {
     response: string
-    toolCalls: any[]
+    toolCalls: ToolCall[]
     simulateStream: boolean
   }
   // Callback to push data to the handler
@@ -34,7 +47,7 @@ export interface PendingRequest {
 
 const pendingRequests = new Map<string, PendingRequest>()
 
-export const addRequest = (type: 'openai' | 'claude' | 'openai-responses', payload: any): Promise<PendingRequest> => {
+export const addRequest = (type: 'openai' | 'claude' | 'openai-responses', payload: ApiPayload): Promise<PendingRequest> => {
   return new Promise((resolve) => {
     const id = Math.random().toString(36).substring(2, 15)
     const request: PendingRequest = {
@@ -87,15 +100,15 @@ export const pushToRequest = (id: string, chunk: Omit<RequestChunk, 'isFinal'>):
         _manualId: chunk._manualId
       })
     } else if (request.type === 'claude') {
-      const content: any[] = []
+      const content: Record<string, unknown>[] = []
       if (chunk.content) content.push({ type: 'text', text: chunk.content })
       if (chunk.toolCalls) {
         chunk.toolCalls.forEach((tc) => {
           content.push({
             type: 'tool_use',
             id: tc.id || `call_${Math.random().toString(36).substring(2, 9)}`,
-            name: tc.function?.name || (tc as any).name,
-            input: typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : ((tc as any).input || {})
+            name: tc.function?.name || tc.name,
+            input: typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : (tc.input || {})
           })
         })
       }
@@ -132,15 +145,15 @@ export const finishRequest = (id: string, chunk?: Omit<RequestChunk, 'isFinal'>)
         _manualId: chunk._manualId
       })
     } else if (request.type === 'claude') {
-      const content: any[] = []
+      const content: Record<string, unknown>[] = []
       if (chunk.content) content.push({ type: 'text', text: chunk.content })
       if (chunk.toolCalls) {
         chunk.toolCalls.forEach((tc) => {
           content.push({
             type: 'tool_use',
             id: tc.id || `call_${Math.random().toString(36).substring(2, 9)}`,
-            name: tc.function?.name || (tc as any).name,
-            input: typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : ((tc as any).input || {})
+            name: tc.function?.name || tc.name,
+            input: typeof tc.function?.arguments === 'string' ? JSON.parse(tc.function.arguments) : (tc.input || {})
           })
         })
       }
