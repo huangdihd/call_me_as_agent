@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
 
   const isPasswordRequired = !!(settings.enablePasswordAuth && config.adminPassword)
   const isOtpRequired = settings.enableOtpAuth
-  let isVerified = false
+  let isVerified = true
 
   // 1. Password Verification
   if (isPasswordRequired) {
@@ -54,7 +54,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    isVerified = isVerified || matches
+    isVerified = isVerified && matches
   }
 
   // 2. OTP Verification
