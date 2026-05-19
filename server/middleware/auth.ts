@@ -1,15 +1,21 @@
+import { verifySession } from '../utils/sessionManager'
+
 export default defineEventHandler((event) => {
   const url = getRequestURL(event)
-  
-  // Decode the pathname to prevent URL-encoding bypass (e.g. /%61pi/internal/)
   const decodedPath = decodeURI(url.pathname)
 
-  // Only protect internal API routes
+  // Protect internal API routes
   if (decodedPath.startsWith('/api/internal/')) {
     const config = useRuntimeConfig()
-    if (config.adminPassword) {
-      const token = getCookie(event, 'auth_token')
-      if (token !== config.adminPassword) {
+    const settings = getSettings()
+    
+    const otpEnabled = !!settings.enableOtpAuth
+    const passwordRequired = !!(settings.enablePasswordAuth && config.adminPassword)
+    
+    // Only enforce if at least one auth method is enabled
+    if (otpEnabled || passwordRequired) {
+      const sessionId = getCookie(event, 'auth_session')
+      if (!verifySession(sessionId)) {
         throw createError({
           statusCode: 401,
           statusMessage: 'Unauthorized'

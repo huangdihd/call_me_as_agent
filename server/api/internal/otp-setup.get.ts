@@ -1,13 +1,11 @@
 import { generateSecret, generateURI } from 'otplib'
 import QRCode from 'qrcode'
+import { verifySession } from '../../utils/sessionManager'
 
 export default defineEventHandler(async (event) => {
-  // Ensure authenticated
-  const config = useRuntimeConfig()
-  const token = getCookie(event, 'auth_token')
-  const expectedToken = config.adminPassword || 'authenticated'
-  
-  if (config.adminPassword && token !== expectedToken) {
+  // Authentication Check
+  const sessionId = getCookie(event, 'auth_session')
+  if (!verifySession(sessionId)) {
     throw createError({
       statusCode: 401,
       statusMessage: 'Unauthorized'

@@ -1,4 +1,5 @@
 import { verifySync } from 'otplib'
+import { createSession } from '../../utils/sessionManager'
 
 interface RateLimitData {
   count: number
@@ -17,48 +18,36 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const settings = getSettings()
 
-  // Get client IP for rate limiting tracking (supports reverse proxy)
+  // Get client IP for rate limiting
   const forwardedHeader = getHeader(event, 'x-forwarded-for')
   let ip = 'unknown'
-
   if (typeof forwardedHeader === 'string' && forwardedHeader.length > 0) {
-    const firstIp = forwardedHeader.split(',')[0]
-    if (firstIp) {
-      ip = firstIp.trim()
-    }
+    ip = forwardedHeader.split(',')[0]?.trim() || 'unknown'
   } else {
     ip = getRequestIP(event) || 'unknown'
   }
 
-  // Check if IP is currently blocked
+  // Check Rate Limit
   const limitData = failedAttempts.get(ip)
-  if (limitData && limitData.blockedUntil) {
-    if (Date.now() < limitData.blockedUntil) {
-      const remainingMinutes = Math.ceil((limitData.blockedUntil - Date.now()) / 60000)
-      throw createError({
-        statusCode: 429,
-        statusMessage: `Too many failed attempts. Try again in ${remainingMinutes} minutes.`
-      })
-    } else {
-      // Unblock if time has passed
-      failedAttempts.delete(ip)
-    }
+  if (limitData && limitData.blockedUntil && Date.now() < limitData.blockedUntil) {
+    const remainingMinutes = Math.ceil((limitData.blockedUntil - Date.now()) / 60000)
+    throw createError({
+      statusCode: 429,
+      statusMessage: `Too many failed attempts. Try again in ${remainingMinutes} minutes.`
+    })
   }
 
-  // Factor Requirement logic
+  // Auth Factors
   const isPasswordRequired = !!(settings.enablePasswordAuth && config.adminPassword)
   const isOtpRequired = !!settings.enableOtpAuth
 
   let isPasswordValid = true
   if (isPasswordRequired) {
     if (password !== config.adminPassword) {
-      // Setup verification bypass: if already authenticated via cookie
+      // Setup verification bypass: only if already authenticated via session
       if (_isSetupVerification) {
-        const token = getCookie(event, 'auth_token')
-        const expectedToken = config.adminPassword || 'authenticated'
-        if (!token || token !== expectedToken) {
-          isPasswordValid = false
-        }
+        const sessionId = getCookie(event, 'auth_session')
+        if (!verifySession(sessionId)) isPasswordValid = false
       } else {
         isPasswordValid = false
       }
@@ -78,49 +67,34 @@ export default defineEventHandler(async (event) => {
   }
 
   if (isPasswordValid && isOtpValid) {
-    // Successful login, clear failed attempts
     failedAttempts.delete(ip)
-
-    // We still use password as the token for now, or a fixed string if no password
-    const token = config.adminPassword || 'authenticated'
-    setCookie(event, 'auth_token', token, {
+    
+    // Create a secure random session ID
+    const sessionId = createSession()
+    setCookie(event, 'auth_session', sessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
       maxAge: 60 * 60 * 24 * 7 // 1 week
     })
+    
+    // Clean up old insecure cookie if it exists
+    deleteCookie(event, 'auth_token')
+    
     return { success: true }
   }
 
-  // Failed attempt logic
+  // Failure
   const currentAttempts = failedAttempts.get(ip)?.count || 0
   const newCount = currentAttempts + 1
-
-  if (newCount >= MAX_ATTEMPTS) {
-    failedAttempts.set(ip, {
-      count: newCount,
-      blockedUntil: Date.now() + BLOCK_DURATION_MS
-    })
-    throw createError({
-      statusCode: 429,
-      statusMessage: `Too many failed attempts. Try again in 15 minutes.`
-    })
-  } else {
-    failedAttempts.set(ip, {
-      count: newCount,
-      blockedUntil: null
-    })
-  }
-
-  // Detailed error messages
-  let statusMessage = 'Invalid credentials'
-  if (isPasswordRequired && !isPasswordValid) {
-    statusMessage = 'Invalid password'
-  } else if ((isOtpRequired || _isSetupVerification) && !isOtpValid) {
-    statusMessage = 'Invalid OTP code'
-  }
-
-  throw createError({
-    statusCode: 401,
-    statusMessage
+  failedAttempts.set(ip, {
+    count: newCount,
+    blockedUntil: newCount >= MAX_ATTEMPTS ? Date.now() + BLOCK_DURATION_MS : null
   })
+
+  let statusMessage = 'Invalid credentials'
+  if (isPasswordRequired && !isPasswordValid) statusMessage = 'Invalid password'
+  else if ((isOtpRequired || _isSetupVerification) && !isOtpValid) statusMessage = 'Invalid OTP code'
+
+  throw createError({ statusCode: 401, statusMessage })
 })
