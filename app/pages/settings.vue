@@ -10,6 +10,8 @@ const checkAuth = async () => {
 const settingsForm = ref({
   enableApiKeyAuth: false,
   apiKey: '',
+  enableOtpAuth: false,
+  otpSecret: '',
   siteTitle: '',
   siteSubtitle: '',
   siteLogo: '',
@@ -25,6 +27,54 @@ const settingsForm = ref({
   tokensLabel: '',
   toastTimeout: 3000
 })
+
+const isOtpModalOpen = ref(false)
+const otpSetupData = ref<any>(null)
+const otpVerificationCode = ref('')
+const isVerifyingOtp = ref(false)
+
+const openOtpSetup = async () => {
+  try {
+    otpSetupData.value = await $fetch('/api/internal/otp-setup')
+    isOtpModalOpen.value = true
+  } catch (e) {
+    toast.add({ title: t('settings_load_failed'), color: 'error' })
+  }
+}
+
+const verifyAndEnableOtp = async () => {
+  if (!otpVerificationCode.value) return
+  isVerifyingOtp.value = true
+  try {
+    // We send a login request to verify the OTP code
+    await $fetch('/api/auth/login', {
+      method: 'POST',
+      body: { 
+        password: '', // We are already authenticated, but we need to verify the OTP
+        otpCode: otpVerificationCode.value,
+        _isSetupVerification: true,
+        _tempSecret: otpSetupData.value.secret
+      }
+    })
+    
+    // If successful, update settings
+    settingsForm.value.enableOtpAuth = true
+    settingsForm.value.otpSecret = otpSetupData.value.secret
+    isOtpModalOpen.value = false
+    otpVerificationCode.value = ''
+    toast.add({ title: t('otp_enabled_success'), color: 'success' })
+  } catch (e: any) {
+    toast.add({ title: t('invalid_otp'), color: 'error' })
+  } finally {
+    isVerifyingOtp.value = false
+  }
+}
+
+const disableOtp = () => {
+  settingsForm.value.enableOtpAuth = false
+  settingsForm.value.otpSecret = ''
+  toast.add({ title: t('otp_disabled_success'), color: 'primary' })
+}
 
 const logoInput = ref<HTMLInputElement | null>(null)
 
@@ -440,8 +490,123 @@ const saveSettings = async () => {
                 class="max-w-md"
               />
             </UFormField>
+
+            <div class="pt-6 border-t border-gray-100 dark:border-gray-800">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h3 class="text-sm font-bold text-gray-900 dark:text-white">
+                    {{ t('otp_auth') }}
+                  </h3>
+                  <p class="text-xs text-gray-500">
+                    {{ t('enable_otp_desc') }}
+                  </p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <UBadge
+                    v-if="settingsForm.enableOtpAuth"
+                    color="success"
+                    variant="subtle"
+                  >
+                    {{ t('enabled') }}
+                  </UBadge>
+                  <UButton
+                    v-if="!settingsForm.enableOtpAuth"
+                    size="sm"
+                    color="primary"
+                    @click="openOtpSetup"
+                  >
+                    {{ t('otp_setup_title') }}
+                  </UButton>
+                  <UButton
+                    v-else
+                    size="sm"
+                    color="error"
+                    variant="soft"
+                    @click="disableOtp"
+                  >
+                    {{ t('disabled') }}
+                  </UButton>
+                </div>
+              </div>
+            </div>
           </div>
         </UCard>
+
+        <!-- OTP Setup Modal -->
+        <UModal v-model="isOtpModalOpen">
+          <UCard>
+            <template #header>
+              <div class="flex items-center justify-between">
+                <h3 class="text-base font-semibold leading-6">
+                  {{ t('otp_setup_title') }}
+                </h3>
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-x"
+                  class="-my-1"
+                  @click="isOtpModalOpen = false"
+                />
+              </div>
+            </template>
+
+            <div class="space-y-6 py-2">
+              <p class="text-sm text-gray-600 dark:text-gray-400">
+                {{ t('otp_setup_step1') }}
+              </p>
+              
+              <div class="space-y-4">
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                  {{ t('otp_setup_step2') }}
+                </p>
+                <div class="flex justify-center bg-white p-4 rounded-xl">
+                  <img
+                    v-if="otpSetupData?.qrCodeDataUrl"
+                    :src="otpSetupData.qrCodeDataUrl"
+                    class="w-48 h-48"
+                  >
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-900 p-3 rounded-lg border border-gray-100 dark:border-gray-800">
+                  <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">{{ t('otp_secret_label') }}</label>
+                  <code class="text-xs font-mono break-all text-primary-600 dark:text-primary-400">{{ otpSetupData?.secret }}</code>
+                </div>
+              </div>
+
+              <div class="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                  {{ t('otp_setup_step3') }}
+                </p>
+                <UInput
+                  v-model="otpVerificationCode"
+                  placeholder="000000"
+                  class="w-full text-center text-lg tracking-[1em]"
+                  maxlength="6"
+                  @keyup.enter="verifyAndEnableOtp"
+                />
+              </div>
+            </div>
+
+            <template #footer>
+              <div class="flex justify-end gap-3">
+                <UButton
+                  variant="ghost"
+                  color="neutral"
+                  @click="isOtpModalOpen = false"
+                >
+                  {{ t('cancel') }}
+                </UButton>
+                <UButton
+                  color="primary"
+                  :loading="isVerifyingOtp"
+                  :disabled="!otpVerificationCode"
+                  @click="verifyAndEnableOtp"
+                >
+                  {{ t('verify_and_enable') }}
+                </UButton>
+              </div>
+            </template>
+          </UCard>
+        </UModal>
 
         <div class="flex items-center justify-center gap-4 pt-4 text-gray-900 dark:text-white">
           <UButton

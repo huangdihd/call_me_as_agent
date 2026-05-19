@@ -1,3 +1,5 @@
+import { verifySync } from 'otplib'
+
 interface RateLimitData {
   count: number
   blockedUntil: number | null
@@ -10,8 +12,9 @@ const MAX_ATTEMPTS = 5
 const BLOCK_DURATION_MS = 15 * 60 * 1000 // 15 minutes
 
 export default defineEventHandler(async (event) => {
-  const { password } = await readBody(event)
+  const { password, otpCode } = await readBody(event)
   const config = useRuntimeConfig()
+  const settings = getSettings()
 
   // Get client IP for rate limiting tracking (supports reverse proxy)
   const forwardedHeader = getHeader(event, 'x-forwarded-for')
@@ -41,15 +44,38 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  if (!config.adminPassword) {
-    return { success: true }
+  // Verification logic
+  let isPasswordValid = true
+  const token = getCookie(event, 'auth_token')
+  const expectedToken = config.adminPassword || 'authenticated'
+
+  if (config.adminPassword && password !== config.adminPassword) {
+    // If password is wrong, check if we are already authenticated via cookie
+    if (!token || token !== expectedToken) {
+      isPasswordValid = false
+    }
   }
 
-  if (password === config.adminPassword) {
+  let isOtpValid = true
+  const body = await readBody(event)
+  if (settings.enableOtpAuth || body._isSetupVerification) {
+    const verificationSecret = body._tempSecret || settings.otpSecret
+    if (!otpCode || !verifySync({
+      token: otpCode,
+      secret: verificationSecret,
+      strategy: 'totp'
+    })) {
+      isOtpValid = false
+    }
+  }
+
+  if (isPasswordValid && isOtpValid) {
     // Successful login, clear failed attempts
     failedAttempts.delete(ip)
 
-    setCookie(event, 'auth_token', password, {
+    // We still use password as the token for now, or a fixed string if no password
+    const token = config.adminPassword || 'authenticated'
+    setCookie(event, 'auth_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7 // 1 week
@@ -79,6 +105,6 @@ export default defineEventHandler(async (event) => {
 
   throw createError({
     statusCode: 401,
-    statusMessage: 'Invalid password'
+    statusMessage: settings.enableOtpAuth && isPasswordValid ? 'Invalid OTP code' : 'Invalid credentials'
   })
 })

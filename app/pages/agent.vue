@@ -11,7 +11,9 @@ const { data: requests, refresh } = useFetch<PendingRequest[]>('/api/internal/re
 const { data: settings } = useFetch<any>('/api/settings')
 const activeRequestId = ref<string | null>(null)
 const isAuthenticated = ref(true)
+const isOtpEnabled = ref(false)
 const loginPassword = ref('')
+const loginOtpCode = ref('')
 const isLoggingIn = ref(false)
 const isSidebarOpen = ref(false) // NEW: Mobile sidebar state
 const responses = ref<Record<string, string>>({})
@@ -71,6 +73,7 @@ watch(simulateStream, (newVal, oldVal) => {
 const checkAuth = async () => {
   const res: any = await $fetch('/api/auth/check')
   isAuthenticated.value = res.authenticated
+  isOtpEnabled.value = res.otpEnabled
 }
 
 const login = async () => {
@@ -78,7 +81,10 @@ const login = async () => {
   try {
     await $fetch('/api/auth/login', {
       method: 'POST',
-      body: { password: loginPassword.value }
+      body: { 
+        password: loginPassword.value,
+        otpCode: loginOtpCode.value
+      }
     })
     isAuthenticated.value = true
     await refresh()
@@ -485,6 +491,16 @@ const availableTools = computed(() => {
             autofocus
             icon="i-lucide-key"
             class="w-full"
+            @keyup.enter="login"
+          />
+          <UInput
+            v-if="isOtpEnabled"
+            v-model="loginOtpCode"
+            type="text"
+            :placeholder="t('otp_code')"
+            icon="i-lucide-shield-check"
+            class="w-full"
+            maxlength="6"
             @keyup.enter="login"
           />
           <UButton

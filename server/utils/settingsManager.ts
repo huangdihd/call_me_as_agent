@@ -5,6 +5,8 @@ export interface AppSettings {
   // Auth
   enableApiKeyAuth: boolean
   apiKey: string
+  enableOtpAuth: boolean
+  otpSecret: string
   // UI Customization
   siteTitle: string
   siteSubtitle: string
@@ -26,6 +28,8 @@ export interface AppSettings {
 const defaultSettings: AppSettings = {
   enableApiKeyAuth: false,
   apiKey: 'sk-human-agent',
+  enableOtpAuth: false,
+  otpSecret: '',
   siteTitle: 'Call Me As Agent',
   siteSubtitle: 'A Human-in-the-loop LLM Proxy Service',
   siteLogo: '',

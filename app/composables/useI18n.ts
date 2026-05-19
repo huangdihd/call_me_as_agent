@@ -97,7 +97,20 @@ const translations = {
     toast_timeout: '提示框停留时间 (ms)',
     toast_timeout_desc: '操作成功/失败时的提示框在屏幕上的停留时间。',
     max_logo_size_hint: '最大 2MB。建议使用正方形图片。',
-    github_repo: 'GitHub 仓库'
+    github_repo: 'GitHub 仓库',
+    otp_auth: 'OTP 认证 (2FA)',
+    enable_otp: '启用 OTP 认证',
+    enable_otp_desc: '使用 Authenticator 应用 (如 2FAS, Google Authenticator) 进行二次验证。',
+    otp_code: 'OTP 验证码',
+    otp_setup_title: '设置 OTP 认证',
+    otp_setup_step1: '1. 在您的手机上打开 2FAS 或其他验证器应用。',
+    otp_setup_step2: '2. 扫描下方的二维码，或手动输入密钥。',
+    otp_setup_step3: '3. 输入应用中显示的 6 位验证码进行验证。',
+    otp_secret_label: '当前密钥',
+    verify_and_enable: '验证并启用',
+    invalid_otp: '验证码无效',
+    otp_enabled_success: 'OTP 认证已启用',
+    otp_disabled_success: 'OTP 认证已禁用'
   },
   en: {
     // General
@@ -195,7 +208,20 @@ const translations = {
     toast_timeout: 'Toast Timeout (ms)',
     toast_timeout_desc: 'Duration for success/error notifications to remain on screen.',
     max_logo_size_hint: 'Max size: 2MB. Recommended square aspect ratio.',
-    github_repo: 'GitHub Repository'
+    github_repo: 'GitHub Repository',
+    otp_auth: 'OTP Authentication (2FA)',
+    enable_otp: 'Enable OTP Auth',
+    enable_otp_desc: 'Use an Authenticator app (like 2FAS, Google Authenticator) for two-factor authentication.',
+    otp_code: 'OTP Code',
+    otp_setup_title: 'Setup OTP Authentication',
+    otp_setup_step1: '1. Open 2FAS or another authenticator app on your phone.',
+    otp_setup_step2: '2. Scan the QR code below or enter the secret manually.',
+    otp_setup_step3: '3. Enter the 6-digit code from the app to verify.',
+    otp_secret_label: 'Current Secret',
+    verify_and_enable: 'Verify and Enable',
+    invalid_otp: 'Invalid OTP code',
+    otp_enabled_success: 'OTP Auth enabled successfully',
+    otp_disabled_success: 'OTP Auth disabled successfully'
   }
 }
 
