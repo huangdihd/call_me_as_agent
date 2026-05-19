@@ -67,7 +67,7 @@ export default defineEventHandler(async (event) => {
       strategy: 'totp'
     }).valid
 
-    isVerified = isVerified || isValid
+    isVerified = isVerified && isValid
   }
 
   if (!isVerified) {
