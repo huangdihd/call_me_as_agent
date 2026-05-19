@@ -1,5 +1,5 @@
 export default defineEventHandler(async (event) => {
-  const { id, response, toolCalls, simulateStream } = await readBody(event)
+  const { id, response, toolCalls, simulateStream, _manualId } = await readBody(event)
   if (!id) {
     throw createError({
       statusCode: 400,
@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    await finishRequest(id, { content: response || '', toolCalls, simulateStream })
+    await finishRequest(id, { content: response || '', toolCalls, simulateStream, _manualId })
     return { success: true }
   } catch (error: any) {
     throw createError({

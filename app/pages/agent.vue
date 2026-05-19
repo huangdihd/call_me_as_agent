@@ -23,6 +23,50 @@ const finishing = ref<Record<string, boolean>>({})
 const { t } = useI18n()
 const toast = useToast()
 
+// Multi-device sync: Sync drafts
+const syncDraft = async (id: string) => {
+  try {
+    await $fetch('/api/internal/draft', {
+      method: 'POST',
+      body: {
+        id,
+        draft: {
+          response: responses.value[id] || '',
+          toolCalls: structuredToolCalls.value[id] || [],
+          simulateStream: simulateStream.value[id] !== false
+        }
+      }
+    })
+  } catch (e) {
+    console.error('Failed to sync draft:', e)
+  }
+}
+
+// Watch for changes and sync (debounced)
+let draftTimers: Record<string, any> = {}
+const queueDraftSync = (id: string) => {
+  if (draftTimers[id]) clearTimeout(draftTimers[id])
+  draftTimers[id] = setTimeout(() => syncDraft(id), 1000)
+}
+
+watch(responses, (newVal, oldVal) => {
+  Object.keys(newVal).forEach(id => {
+    if (newVal[id] !== oldVal[id]) queueDraftSync(id)
+  })
+}, { deep: true })
+
+watch(structuredToolCalls, (newVal, oldVal) => {
+  Object.keys(newVal).forEach(id => {
+    if (JSON.stringify(newVal[id]) !== JSON.stringify(oldVal[id])) queueDraftSync(id)
+  })
+}, { deep: true })
+
+watch(simulateStream, (newVal, oldVal) => {
+  Object.keys(newVal).forEach(id => {
+    if (newVal[id] !== oldVal[id]) queueDraftSync(id)
+  })
+}, { deep: true })
+
 // 2. Auth logic
 const checkAuth = async () => {
   const res: any = await $fetch('/api/auth/check')
@@ -51,7 +95,6 @@ const logout = async () => {
   loginPassword.value = ''
 }
 
-// 3. Request management logic
 const activeRequest = computed(() => {
   if (!requests.value) return null
   return requests.value.find(r => r.id === activeRequestId.value) || null
@@ -59,9 +102,17 @@ const activeRequest = computed(() => {
 
 watch(requests, (newRequests) => {
   if (newRequests?.length) {
-    newRequests.forEach((r) => {
+    newRequests.forEach((r: any) => {
       if (simulateStream.value[r.id] === undefined) {
-        simulateStream.value[r.id] = true
+        simulateStream.value[r.id] = r.draft?.simulateStream !== undefined ? r.draft.simulateStream : true
+      }
+      // Populate local state from server draft if local is empty
+      if (r.draft) {
+        if (!responses.value[r.id]) responses.value[r.id] = r.draft.response
+        const tc = structuredToolCalls.value[r.id]
+        if (!tc || tc.length === 0) {
+          structuredToolCalls.value[r.id] = r.draft.toolCalls
+        }
       }
     })
     if (!activeRequestId.value) {
@@ -190,6 +241,7 @@ const sendPart = async (id: string) => {
   const toolCalls = parseToolCalls(id)
   let content = responses.value[id] || ''
   const isStreaming = simulateStream.value[id] !== false
+  const manualId = Math.random().toString(36).substring(2, 15)
 
   // Clear local input immediately to allow next typing
   responses.value[id] = ''
@@ -208,7 +260,8 @@ const sendPart = async (id: string) => {
         id,
         response: content,
         toolCalls: toolCalls.length > 0 ? toolCalls : null,
-        simulateStream: isStreaming
+        simulateStream: isStreaming,
+        _manualId: manualId
       }
     })
 
@@ -217,9 +270,11 @@ const sendPart = async (id: string) => {
       role: 'assistant',
       content: content,
       tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
-      _is_manual: true
+      _is_manual: true,
+      _manualId: manualId
     })
 
+    await refresh()
     toast.add({ title: t('response_sent'), color: 'primary', duration: settings.value?.toastTimeout ? Number(settings.value.toastTimeout) : 3000 })
     scrollToBottom()
   } catch (error) {
@@ -234,6 +289,7 @@ const finish = async (id: string) => {
   const toolCalls = parseToolCalls(id)
   const content = responses.value[id] || ''
   const isStreaming = simulateStream.value[id] !== false
+  const manualId = Math.random().toString(36).substring(2, 15)
 
   responses.value[id] = ''
   structuredToolCalls.value[id] = []
@@ -246,7 +302,8 @@ const finish = async (id: string) => {
         id,
         response: content,
         toolCalls: toolCalls.length > 0 ? toolCalls : null,
-        simulateStream: isStreaming
+        simulateStream: isStreaming,
+        _manualId: manualId
       }
     })
 
@@ -315,7 +372,12 @@ const getMessages = (payload: any, reqId: string) => {
   }
 
   if (reqId && sentHistory.value[reqId]) {
-    messages = [...messages, ...sentHistory.value[reqId]]
+    const existingIds = new Set(messages.filter(m => m._is_manual).map(m => m._manualId))
+    sentHistory.value[reqId].forEach((sm) => {
+      if (!sm._manualId || !existingIds.has(sm._manualId)) {
+        messages.push(sm)
+      }
+    })
   }
 
   return messages.map((m) => {
