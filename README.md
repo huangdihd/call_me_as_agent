@@ -4,7 +4,7 @@
 
 一个可以让自己变成一个公用AI Agent给别人干活的项目
 
-一个“人工介入”（Human-in-the-loop）的 LLM 服务端。它允许你拦截、监控并手动回复 LLM API 请求。它支持 **OpenAI** 和 **Claude (Anthropic)** 格式，旨在成为 OpenCode 等工具中真实 LLM API 的替代方案。
+一个开源, 简单轻量, 适于本地部署的“人工介入”（Human-in-the-loop）的 LLM 服务端。它允许你拦截、监控并手动回复 LLM API 请求。它支持 **OpenAI** 和 **Claude (Anthropic)** 格式，旨在成为 OpenCode 等工具中真实 LLM API 的替代方案。
 
 ## 🌟 核心功能
 
