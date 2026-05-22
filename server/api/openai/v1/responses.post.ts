@@ -1,3 +1,7 @@
+import { getSettings } from '../../../utils/settingsManager'
+import { addRequest } from '../../../utils/requestManager'
+import { estimateTokens, extractContextText } from '../../../utils/tokenUtils'
+
 export type OpenAIResponsesResponse = {
   id: string
   object: 'response'
@@ -33,10 +37,8 @@ export default defineEventHandler(async (event) => {
   const now = Math.floor(Date.now() / 1000)
 
   // Token counting
-  let promptTokens = 0
-  let completionTokens = 0
-  const estimateTokens = (obj: unknown) => Math.ceil(JSON.stringify(obj).length / 3)
-  promptTokens = estimateTokens(body.input || body.instructions)
+  const inputContextText = extractContextText(body)
+  const promptTokens = estimateTokens(inputContextText)
 
   const request = await addRequest('openai-responses', body)
   const requestId = request.id // Use the stable ID from request manager
@@ -100,16 +102,13 @@ export default defineEventHandler(async (event) => {
         if (chunk.content) {
           const content = chunk.content
           totalAssistantText += content
-          completionTokens += Math.ceil(content.length / 3)
           const itemId = `item_${Math.random().toString(36).substring(2, 9)}`
 
           emit('response.output_item.added', {
-            response_id: `resp_${requestId}`,
             output_index: outputIndex,
             item: { id: itemId, type: 'message', status: 'in_progress', role: 'assistant', content: [] }
           })
           emit('response.content_part.added', {
-            response_id: `resp_${requestId}`,
             item_id: itemId,
             output_index: outputIndex,
             content_index: 0,
@@ -118,7 +117,6 @@ export default defineEventHandler(async (event) => {
 
           if (speed === 0) {
             emit('response.output_text.delta', {
-              response_id: `resp_${requestId}`,
               item_id: itemId,
               output_index: outputIndex,
               content_index: 0,
@@ -127,7 +125,6 @@ export default defineEventHandler(async (event) => {
           } else {
             for (let i = 0; i < content.length; i++) {
               emit('response.output_text.delta', {
-                response_id: `resp_${requestId}`,
                 item_id: itemId,
                 output_index: outputIndex,
                 content_index: 0,
@@ -147,21 +144,18 @@ export default defineEventHandler(async (event) => {
           finalOutputItems.push(completedItem)
 
           emit('response.output_text.done', {
-            response_id: `resp_${requestId}`,
             item_id: itemId,
             output_index: outputIndex,
             content_index: 0,
             text: content
           })
           emit('response.content_part.done', {
-            response_id: `resp_${requestId}`,
             item_id: itemId,
             output_index: outputIndex,
             content_index: 0,
             part: completedItem.content[0]
           })
           emit('response.output_item.done', {
-            response_id: `resp_${requestId}`,
             output_index: outputIndex,
             item: completedItem
           })
@@ -176,8 +170,6 @@ export default defineEventHandler(async (event) => {
             const toolName = tc.function?.name || tc.name
             const formattedArgs = typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || tc.input || {})
 
-            completionTokens += Math.ceil(formattedArgs.length / 3)
-
             const toolItem = {
               id: tcItemId,
               type: 'function_call',
@@ -189,24 +181,20 @@ export default defineEventHandler(async (event) => {
             finalOutputItems.push(toolItem)
 
             emit('response.output_item.added', {
-              response_id: `resp_${requestId}`,
               output_index: outputIndex,
               item: { id: tcItemId, type: 'function_call', status: 'in_progress', name: toolName, arguments: '', call_id: callId }
             })
             emit('response.function_call_arguments.delta', {
-              response_id: `resp_${requestId}`,
               item_id: tcItemId,
               output_index: outputIndex,
               delta: formattedArgs
             })
             emit('response.function_call_arguments.done', {
-              response_id: `resp_${requestId}`,
               item_id: tcItemId,
               output_index: outputIndex,
               arguments: formattedArgs
             })
             emit('response.output_item.done', {
-              response_id: `resp_${requestId}`,
               output_index: outputIndex,
               item: toolItem
             })
@@ -216,12 +204,11 @@ export default defineEventHandler(async (event) => {
 
         if (chunk.isFinal) {
           clearInterval(keepAliveTimer)
+          const completionTokens = estimateTokens(totalAssistantText) + finalOutputItems.filter(i => i.type === 'function_call').reduce((acc, i) => acc + estimateTokens(String(i.arguments)), 0)
           const usage = {
-            prompt_tokens: promptTokens,
-            completion_tokens: completionTokens,
-            total_tokens: promptTokens + completionTokens,
             input_tokens: promptTokens,
-            output_tokens: completionTokens
+            output_tokens: completionTokens,
+            total_tokens: promptTokens + completionTokens
           }
           const finalResponse = buildBaseResponse('completed', finalOutputItems, usage, totalAssistantText)
 
@@ -243,31 +230,36 @@ export default defineEventHandler(async (event) => {
 
           await new Promise(r => setTimeout(r, 200))
           event.node.res.end()
-          resolve()
+          resolve(undefined)
         }
       }
 
       event.node.req.on('close', () => {
         clearInterval(keepAliveTimer)
         // DO NOT delete request from manager on disconnect to support retries
-        resolve()
+        resolve(undefined)
       })
     })
   } else {
-    // Non-streaming
+    // Non-streaming: Wait for final chunk with heartbeat
     return new Promise((resolve) => {
+      // Setup keep-alive for non-streaming: send whitespace to keep connection alive
+      const keepAliveTimer = setInterval(() => {
+        if (!event.node.res.writableEnded) {
+          event.node.res.write(' ') // Send a space to keep connection alive
+        }
+      }, (settings.keepAliveInterval || 10) * 1000)
+
       const finalOutput: Record<string, unknown>[] = []
       let totalText = ''
       request.onData = async (chunk) => {
         if (chunk.content) {
           totalText += chunk.content
-          completionTokens += Math.ceil(chunk.content.length / 3)
           finalOutput.push({ id: `item_${Math.random().toString(36).substring(2, 7)}`, type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: chunk.content, annotations: [] }] })
         }
         if (chunk.toolCalls) {
           chunk.toolCalls.forEach((tc) => {
             const formattedArgs = typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || tc.input || {})
-            completionTokens += Math.ceil(formattedArgs.length / 3)
             finalOutput.push({
               id: `item_${Math.random().toString(36).substring(2, 7)}`,
               type: 'function_call',
@@ -279,7 +271,9 @@ export default defineEventHandler(async (event) => {
           })
         }
         if (chunk.isFinal) {
-          resolve({
+          clearInterval(keepAliveTimer)
+          const completionTokens = estimateTokens(totalText) + finalOutput.filter(i => i.type === 'function_call').reduce((acc, i) => acc + estimateTokens(String(i.arguments)), 0)
+          const result = {
             id: `resp_${requestId}`,
             object: 'response',
             created_at: now,
@@ -289,9 +283,24 @@ export default defineEventHandler(async (event) => {
             output_text: totalText,
             usage: { input_tokens: promptTokens, output_tokens: completionTokens, total_tokens: promptTokens + completionTokens },
             conversation_id: `conv_${requestId}`
-          } as OpenAIResponsesResponse)
+          } as OpenAIResponsesResponse
+
+          import('../../../utils/statsManager').then(({ incrementTokens }) => {
+            incrementTokens(promptTokens, completionTokens)
+          })
+
+          if (!event.node.res.writableEnded) {
+            event.node.res.setHeader('Content-Type', 'application/json')
+            event.node.res.end(JSON.stringify(result))
+          }
+          resolve(undefined)
         }
       }
+
+      event.node.req.on('close', () => {
+        clearInterval(keepAliveTimer)
+        resolve(undefined)
+      })
     })
   }
 })

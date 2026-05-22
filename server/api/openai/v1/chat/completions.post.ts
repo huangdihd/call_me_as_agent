@@ -1,3 +1,7 @@
+import { getSettings } from '../../../../utils/settingsManager'
+import { addRequest, type ToolCall } from '../../../../utils/requestManager'
+import { estimateTokens, extractContextText } from '../../../../utils/tokenUtils'
+
 export type OpenAICompletionResponse = {
   id: string
   object: 'chat.completion'
@@ -42,11 +46,8 @@ export default defineEventHandler(async (event) => {
   const now = Math.floor(Date.now() / 1000)
 
   // Token counting state
-  let promptTokens = 0
-  let completionTokens = 0
-
-  const estimateTokens = (obj: unknown) => Math.ceil(JSON.stringify(obj).length / 3)
-  promptTokens = estimateTokens(body.messages)
+  const inputContextText = extractContextText(body)
+  const promptTokens = estimateTokens(inputContextText)
 
   const request = await addRequest('openai', body)
   const requestId = request.id
@@ -82,6 +83,9 @@ export default defineEventHandler(async (event) => {
       }
     }, (settings.keepAliveInterval || 15) * 1000)
 
+    let totalAssistantText = ''
+    const finalToolCalls: any[] = []
+
     return new Promise<void>((resolve) => {
       request.onData = async (chunk) => {
         const speed = chunk.simulateStream ? (settings.streamSpeed || 30) : 0
@@ -89,7 +93,7 @@ export default defineEventHandler(async (event) => {
         // Handle Content
         if (chunk.content) {
           const content = chunk.content
-          completionTokens += Math.ceil(content.length / 3)
+          totalAssistantText += content
 
           if (speed === 0) {
             sendChunk({
@@ -126,7 +130,7 @@ export default defineEventHandler(async (event) => {
                 : JSON.stringify(tc.function?.arguments || tc.input || {})
             }
           }))
-          completionTokens += Math.ceil(JSON.stringify(tool_calls).length / 3)
+          finalToolCalls.push(...tool_calls)
 
           sendChunk({
             id: `chatcmpl-${requestId}`,
@@ -139,6 +143,7 @@ export default defineEventHandler(async (event) => {
 
         if (chunk.isFinal) {
           clearInterval(keepAliveTimer)
+          const completionTokens = estimateTokens(totalAssistantText) + finalToolCalls.reduce((acc, tc) => acc + estimateTokens(tc.function.arguments), 0)
           
           const lastChunk = {
             id: `chatcmpl-${requestId}`,
@@ -172,19 +177,26 @@ export default defineEventHandler(async (event) => {
           })
 
           event.node.res.end()
-          resolve()
+          resolve(undefined)
         }
       }
 
       event.node.req.on('close', () => {
         clearInterval(keepAliveTimer)
         // DO NOT delete request from manager on disconnect to support retries
-        resolve()
+        resolve(undefined)
       })
     })
   } else {
-    // Non-streaming: Wait for final chunk
+    // Non-streaming: Wait for final chunk with heartbeat
     return new Promise((resolve) => {
+      // Setup keep-alive for non-streaming: send whitespace to keep connection alive
+      const keepAliveTimer = setInterval(() => {
+        if (!event.node.res.writableEnded) {
+          event.node.res.write(' ') // Send a space to keep connection alive
+        }
+      }, (settings.keepAliveInterval || 15) * 1000)
+
       let bufferedContent = ''
       const bufferedTools: ToolCall[] = []
 
@@ -193,8 +205,13 @@ export default defineEventHandler(async (event) => {
         if (chunk.toolCalls) bufferedTools.push(...chunk.toolCalls)
 
         if (chunk.isFinal) {
-          const totalTokens = promptTokens + Math.ceil((bufferedContent.length + JSON.stringify(bufferedTools).length) / 3)
-          resolve({
+          clearInterval(keepAliveTimer)
+          const completionTokens = estimateTokens(bufferedContent) + bufferedTools.reduce((acc, tc) => {
+            const args = typeof tc.function?.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function?.arguments || tc.input || {})
+            return acc + estimateTokens(args)
+          }, 0)
+
+          const result = {
             id: `chatcmpl-${requestId}`,
             object: 'chat.completion',
             created: now,
@@ -217,10 +234,25 @@ export default defineEventHandler(async (event) => {
               },
               finish_reason: bufferedTools.length > 0 ? 'tool_calls' : 'stop'
             }],
-            usage: { prompt_tokens: promptTokens, completion_tokens: totalTokens - promptTokens, total_tokens: totalTokens }
-          } as OpenAICompletionResponse)
+            usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens, total_tokens: promptTokens + completionTokens }
+          } as OpenAICompletionResponse
+
+          import('../../../../utils/statsManager').then(({ incrementTokens }) => {
+            incrementTokens(promptTokens, completionTokens)
+          })
+
+          if (!event.node.res.writableEnded) {
+            event.node.res.setHeader('Content-Type', 'application/json')
+            event.node.res.end(JSON.stringify(result))
+          }
+          resolve(undefined)
         }
       }
+
+      event.node.req.on('close', () => {
+        clearInterval(keepAliveTimer)
+        resolve(undefined)
+      })
     })
   }
 })
