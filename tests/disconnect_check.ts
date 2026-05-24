@@ -22,92 +22,64 @@ async function getPendingRequests() {
 }
 
 async function runTests() {
-  console.log('Running Disconnection Tests...')
+  console.log('Running Comprehensive Disconnection Tests...')
 
-  // 1. Non-streaming Disconnection
-  console.log('Testing Non-streaming Disconnection (Claude)...')
-  const controller1 = new AbortController()
-  const resp1Promise = fetch(`${BASE_URL}/api/claude/v1/messages`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-3-5-sonnet',
-      messages: [{ role: 'user', content: 'Hello' }],
-      stream: false
-    }),
-    signal: controller1.signal
-  }).catch(e => {
-    if (e.name === 'AbortError') return 'aborted'
-    throw e
-  })
+  const testConfigs = [
+    { name: 'OpenAI Chat', url: '/api/openai/v1/chat/completions', body: { model: 'gpt-4o', messages: [{ role: 'user', content: 'Hello' }] } },
+    { name: 'OpenAI Responses', url: '/api/openai/v1/responses', body: { model: 'gpt-4o', input: [{ role: 'user', content: 'Hello' }] } },
+    { name: 'Claude Messages', url: '/api/claude/v1/messages', body: { model: 'claude-3-5-sonnet', messages: [{ role: 'user', content: 'Hello' }] } },
+  ]
 
-  // Wait for request to appear
-  let requests = []
-  for (let i = 0; i < 20; i++) {
-    requests = await getPendingRequests()
-    if (requests.length > 0) break
-    await new Promise(r => setTimeout(r, 200))
+  for (const config of testConfigs) {
+    for (const stream of [false, true]) {
+      const mode = stream ? 'Streaming' : 'Non-streaming'
+      console.log(`\nTesting ${config.name} (${mode}) Disconnection...`)
+      
+      const controller = new AbortController()
+      const respPromise = fetch(`${BASE_URL}${config.url}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...config.body, stream }),
+        signal: controller.signal
+      }).catch(e => {
+        if (e.name === 'AbortError') return 'aborted'
+        throw e
+      })
+
+      // Wait for request to appear
+      let requestId = ''
+      for (let i = 0; i < 20; i++) {
+        const requests = await getPendingRequests()
+        if (requests.length > 0) {
+          requestId = requests[0].id
+          break
+        }
+        await new Promise(r => setTimeout(r, 200))
+      }
+
+      if (!requestId) {
+        throw new Error(`No pending request found for ${config.name} (${mode})`)
+      }
+      console.log(`Request found: ${requestId}`)
+
+      // Abort the client request
+      console.log(`Aborting client ${mode} request...`)
+      controller.abort()
+      await respPromise
+
+      // Check if it's still in the list
+      await new Promise(r => setTimeout(r, 500))
+      const requestsAfter = await getPendingRequests()
+      const found = requestsAfter.find((r: any) => r.id === requestId)
+      
+      if (found) {
+        throw new Error(`${config.name} (${mode}) request still in list after client disconnect`)
+      }
+      console.log(`✓ ${config.name} (${mode}) request GONE after client disconnect`)
+    }
   }
-  if (requests.length === 0) throw new Error('No pending request found for non-streaming')
-  const requestId1 = requests[0].id
-  console.log('Request found:', requestId1)
 
-  // Abort the client request
-  console.log('Aborting client request...')
-  controller1.abort()
-  await resp1Promise
-
-  // Check if it's still in the list
-  await new Promise(r => setTimeout(r, 500))
-  requests = await getPendingRequests()
-  const found1 = requests.find((r: any) => r.id === requestId1)
-  if (found1) {
-    throw new Error('Request still in list after client disconnect (Non-streaming)')
-  }
-  console.log('✓ Request GONE after client disconnect (Non-streaming)')
-
-  // 2. Streaming Disconnection
-  console.log('\nTesting Streaming Disconnection...')
-  const controller2 = new AbortController()
-  const resp2Promise = fetch(`${BASE_URL}/api/openai/v1/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'gpt-4o',
-      messages: [{ role: 'user', content: 'Hello' }],
-      stream: true
-    }),
-    signal: controller2.signal
-  }).catch(e => {
-    if (e.name === 'AbortError') return 'aborted'
-    throw e
-  })
-
-  // Wait for request to appear
-  for (let i = 0; i < 20; i++) {
-    requests = await getPendingRequests()
-    if (requests.length > 0) break
-    await new Promise(r => setTimeout(r, 200))
-  }
-  if (requests.length === 0) throw new Error('No pending request found for streaming')
-  const requestId2 = requests[0].id
-  console.log('Request found:', requestId2)
-
-  // Abort the client request
-  console.log('Aborting client streaming request...')
-  controller2.abort()
-  await resp2Promise
-
-  // Check if it's still in the list
-  await new Promise(r => setTimeout(r, 500))
-  requests = await getPendingRequests()
-  const found2 = requests.find((r: any) => r.id === requestId2)
-  if (found2) {
-    throw new Error('Request still in list after client disconnect (Streaming)')
-  }
-  console.log('✓ Request GONE after client disconnect (Streaming)')
-
-  console.log('\nAll disconnection tests passed!')
+  console.log('\nAll comprehensive disconnection tests passed!')
 }
 
 const server = spawn('npm', ['run', 'dev'], { 
