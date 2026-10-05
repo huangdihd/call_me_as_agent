@@ -27,6 +27,23 @@ export interface AppSettings {
   useHeaderForIp: boolean
   ipHeaderName: string
   shutdownMessage: string
+  // Email notification & reply
+  enableEmailNotify: boolean
+  notifyEmailTo: string
+  smtpHost: string
+  smtpPort: number
+  smtpSecure: boolean
+  smtpUser: string
+  smtpPass: string
+  enableEmailReply: boolean
+  imapHost: string
+  imapPort: number
+  imapSecure: boolean
+  imapUser: string
+  imapPass: string
+  imapMailbox: string
+  emailPollInterval: number // seconds between IMAP polls
+  emailReplyAllowFrom: string // comma-separated allowlist, empty = accept any sender
 }
 
 const defaultSettings: AppSettings = {
@@ -51,7 +68,23 @@ const defaultSettings: AppSettings = {
   toastTimeout: 3000,
   useHeaderForIp: true,
   ipHeaderName: 'x-forwarded-for',
-  shutdownMessage: '\n\n[Server Shutdown] The proxy server is closing. Please retry your request if needed.'
+  shutdownMessage: '\n\n[Server Shutdown] The proxy server is closing. Please retry your request if needed.',
+  enableEmailNotify: false,
+  notifyEmailTo: '',
+  smtpHost: '',
+  smtpPort: 465,
+  smtpSecure: true,
+  smtpUser: '',
+  smtpPass: '',
+  enableEmailReply: false,
+  imapHost: '',
+  imapPort: 993,
+  imapSecure: true,
+  imapUser: '',
+  imapPass: '',
+  imapMailbox: 'INBOX',
+  emailPollInterval: 60,
+  emailReplyAllowFrom: ''
 }
 
 const settingsPath = path.resolve(process.cwd(), '.data', 'settings.json')

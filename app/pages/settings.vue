@@ -33,7 +33,23 @@ const settingsForm = ref({
   toastTimeout: 3000,
   shutdownMessage: '',
   useHeaderForIp: true,
-  ipHeaderName: 'x-forwarded-for'
+  ipHeaderName: 'x-forwarded-for',
+  enableEmailNotify: false,
+  notifyEmailTo: '',
+  smtpHost: '',
+  smtpPort: 465,
+  smtpSecure: true,
+  smtpUser: '',
+  smtpPass: '',
+  enableEmailReply: false,
+  imapHost: '',
+  imapPort: 993,
+  imapSecure: true,
+  imapUser: '',
+  imapPass: '',
+  imapMailbox: 'INBOX',
+  emailPollInterval: 60,
+  emailReplyAllowFrom: ''
 })
 
 const isOtpModalOpen = ref(false)
@@ -45,7 +61,7 @@ const openOtpSetup = async () => {
   try {
     otpSetupData.value = await $fetch('/api/internal/otp-setup')
     isOtpModalOpen.value = true
-  } catch (e) {
+  } catch {
     toast.add({ title: t('settings_load_failed'), color: 'error' })
   }
 }
@@ -69,7 +85,7 @@ const verifyAndEnableOtp = async () => {
     isOtpModalOpen.value = false
     otpVerificationCode.value = ''
     toast.add({ title: t('otp_enabled_success'), color: 'success' })
-  } catch (e) {
+  } catch {
     toast.add({ title: t('invalid_otp'), color: 'error' })
   } finally {
     isVerifyingOtp.value = false
@@ -116,8 +132,29 @@ const loadSettings = async () => {
   try {
     const res: SettingsGetResponse = await $fetch('/api/internal/settings')
     Object.assign(settingsForm.value, res)
-  } catch (e) {
+  } catch {
     toast.add({ title: t('settings_load_failed'), color: 'error' })
+  }
+}
+
+const isSendingTestEmail = ref(false)
+const testEmailTo = ref('')
+
+const sendTestEmail = async () => {
+  isSendingTestEmail.value = true
+  try {
+    await $fetch('/api/internal/email-test', {
+      method: 'POST',
+      body: { to: testEmailTo.value || settingsForm.value.notifyEmailTo }
+    })
+    toast.add({ title: t('email_test_success'), color: 'success', duration: settingsForm.value.toastTimeout })
+  } catch (e: unknown) {
+    const message = e instanceof Error && 'data' in e && typeof (e as { data?: { statusMessage?: string } }).data === 'object'
+      ? (e as { data?: { statusMessage?: string } }).data?.statusMessage
+      : undefined
+    toast.add({ title: t('email_test_failed'), description: message, color: 'error', duration: settingsForm.value.toastTimeout })
+  } finally {
+    isSendingTestEmail.value = false
   }
 }
 
@@ -143,7 +180,7 @@ const saveSettings = async () => {
         }, 500
       )
     }
-  } catch (e) {
+  } catch {
     toast.add({ title: t('settings_failed'), color: 'error' })
   } finally {
     isSaving.value = false
@@ -547,6 +584,193 @@ const saveSettings = async () => {
                     </UButton>
                   </div>
                 </div>
+              </div>
+            </div>
+          </UCard>
+
+          <!-- Email Section -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-2 text-primary-500">
+                <UIcon
+                  name="i-lucide-mail"
+                  class="w-5 h-5"
+                />
+                <h2 class="font-bold text-lg">
+                  {{ t('email_integration') }}
+                </h2>
+              </div>
+            </template>
+            <div class="space-y-6">
+              <div class="p-4 rounded-2xl bg-primary-50 dark:bg-primary-950/30 text-primary-700 dark:text-primary-300 text-sm leading-relaxed border border-primary-100 dark:border-primary-900/50">
+                {{ t('email_notify_hint') }}
+              </div>
+
+              <div class="flex items-center justify-between p-4 rounded-2xl bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 shadow-sm">
+                <div class="flex flex-col pr-4">
+                  <span class="text-sm font-bold">{{ t('email_notify') }}</span>
+                  <span class="text-[10px] text-gray-400 mt-0.5 leading-tight">{{ t('email_notify_desc') }}</span>
+                </div>
+                <USwitch v-model="settingsForm.enableEmailNotify" />
+              </div>
+              <UFormField
+                v-if="settingsForm.enableEmailNotify"
+                :label="t('notify_email_to')"
+                :description="t('notify_email_to_desc')"
+              >
+                <UInput
+                  v-model="settingsForm.notifyEmailTo"
+                  placeholder="you@example.com"
+                  class="w-full max-w-xl"
+                />
+              </UFormField>
+
+              <div class="pt-6 border-t border-gray-100 dark:border-gray-800 space-y-6">
+                <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest">
+                  {{ t('smtp_section') }}
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <UFormField
+                    :label="t('smtp_host')"
+                    class="md:col-span-2"
+                  >
+                    <UInput
+                      v-model="settingsForm.smtpHost"
+                      placeholder="smtp.qq.com"
+                      class="w-full"
+                    />
+                  </UFormField>
+                  <UFormField :label="t('smtp_port')">
+                    <UInput
+                      v-model="settingsForm.smtpPort"
+                      type="number"
+                      class="w-full"
+                    />
+                  </UFormField>
+                  <UFormField :label="t('smtp_secure')">
+                    <USwitch v-model="settingsForm.smtpSecure" />
+                  </UFormField>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <UFormField :label="t('smtp_user')">
+                    <UInput
+                      v-model="settingsForm.smtpUser"
+                      placeholder="you@example.com"
+                      class="w-full"
+                    />
+                  </UFormField>
+                  <UFormField
+                    :label="t('smtp_pass')"
+                    :description="t('smtp_pass_desc')"
+                  >
+                    <UInput
+                      v-model="settingsForm.smtpPass"
+                      type="password"
+                      icon="i-lucide-key"
+                      class="w-full"
+                    />
+                  </UFormField>
+                </div>
+                <div class="flex flex-col md:flex-row md:items-end gap-4">
+                  <UFormField
+                    :label="t('email_test_to')"
+                    class="flex-1 w-full"
+                  >
+                    <UInput
+                      v-model="testEmailTo"
+                      placeholder="you@example.com"
+                      class="w-full"
+                    />
+                  </UFormField>
+                  <UButton
+                    :loading="isSendingTestEmail"
+                    icon="i-lucide-send"
+                    class="md:mb-0.5"
+                    @click="sendTestEmail"
+                  >
+                    {{ t('email_test') }}
+                  </UButton>
+                </div>
+              </div>
+
+              <div class="pt-6 border-t border-gray-100 dark:border-gray-800 space-y-6">
+                <div class="flex items-center justify-between p-4 rounded-2xl bg-gray-50/50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 shadow-sm">
+                  <div class="flex flex-col pr-4">
+                    <span class="text-sm font-bold">{{ t('email_reply') }}</span>
+                    <span class="text-[10px] text-gray-400 mt-0.5 leading-tight">{{ t('email_reply_desc') }}</span>
+                  </div>
+                  <USwitch v-model="settingsForm.enableEmailReply" />
+                </div>
+                <template v-if="settingsForm.enableEmailReply">
+                  <h3 class="text-xs font-black text-gray-400 uppercase tracking-widest">
+                    {{ t('imap_section') }}
+                  </h3>
+                  <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <UFormField
+                      :label="t('imap_host')"
+                      class="md:col-span-2"
+                    >
+                      <UInput
+                        v-model="settingsForm.imapHost"
+                        placeholder="imap.qq.com"
+                        class="w-full"
+                      />
+                    </UFormField>
+                    <UFormField :label="t('smtp_port')">
+                      <UInput
+                        v-model="settingsForm.imapPort"
+                        type="number"
+                        class="w-full"
+                      />
+                    </UFormField>
+                    <UFormField :label="t('smtp_secure')">
+                      <USwitch v-model="settingsForm.imapSecure" />
+                    </UFormField>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <UFormField :label="t('smtp_user')">
+                      <UInput
+                        v-model="settingsForm.imapUser"
+                        placeholder="you@example.com"
+                        class="w-full"
+                      />
+                    </UFormField>
+                    <UFormField :label="t('smtp_pass')">
+                      <UInput
+                        v-model="settingsForm.imapPass"
+                        type="password"
+                        icon="i-lucide-key"
+                        class="w-full"
+                      />
+                    </UFormField>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <UFormField :label="t('imap_mailbox')">
+                      <UInput
+                        v-model="settingsForm.imapMailbox"
+                        placeholder="INBOX"
+                        class="w-full"
+                      />
+                    </UFormField>
+                    <UFormField :label="t('email_poll_interval')">
+                      <UInput
+                        v-model="settingsForm.emailPollInterval"
+                        type="number"
+                        class="w-full"
+                      />
+                    </UFormField>
+                  </div>
+                  <UFormField
+                    :label="t('email_reply_allow_from')"
+                    :description="t('email_reply_allow_from_desc')"
+                  >
+                    <UInput
+                      v-model="settingsForm.emailReplyAllowFrom"
+                      placeholder="you@example.com"
+                      class="w-full max-w-xl"
+                    />
+                  </UFormField>
+                </template>
               </div>
             </div>
           </UCard>

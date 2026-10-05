@@ -82,9 +82,16 @@ export default defineEventHandler(async (event) => {
   // 3. Success
   failedAttempts.delete(ip)
   const sessionId = createSession()
+  // Only mark the cookie Secure when the request actually arrived over HTTPS,
+  // otherwise browsers on plain-HTTP deployments silently drop it (login appears
+  // to succeed but every authenticated request afterwards fails with 401)
+  const forwardedProto = (getHeader(event, 'x-forwarded-proto') || '').split(',')[0]?.trim()
+  const isHttps = forwardedProto
+    ? forwardedProto === 'https'
+    : getRequestURL(event).protocol === 'https:'
   setCookie(event, 'auth_session', sessionId, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isHttps,
     sameSite: 'strict',
     maxAge: 60 * 60 * 24 * 7
   })

@@ -72,7 +72,7 @@ export const addRequest = (type: 'openai' | 'claude' | 'openai-responses', paylo
       model: payload.model
     })
     const id = crypto.createHash('md5').update(hashContent).digest('hex').substring(0, 15)
-    
+
     const existing = pendingRequests.get(id)
     if (existing) {
       console.log(`[RequestManager] Re-using existing request: ${id} (Type: ${type})`)
@@ -92,6 +92,12 @@ export const addRequest = (type: 'openai' | 'claude' | 'openai-responses', paylo
     }
     pendingRequests.set(id, request)
     console.log(`[RequestManager] Added ${type} request: ${id}`)
+
+    // Fire-and-forget email notification for the new pending request
+    import('./emailManager')
+      .then(({ notifyNewRequest }) => notifyNewRequest(id, payload))
+      .catch(e => console.error('[RequestManager] Email notification failed:', e instanceof Error ? e.message : e))
+
     resolve(request)
   })
 }
@@ -226,4 +232,3 @@ export const finishRequest = (id: string, chunk?: Omit<RequestChunk, 'isFinal'>)
   request.queue = promise
   return promise
 }
-
